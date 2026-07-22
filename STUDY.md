@@ -61,3 +61,12 @@
 - Tomcat worker pools, Hikari database connection pools, and backpressure
 - Separate public API and loopback-only Actuator management ports
 - TestFlight beta distribution versus the Apple Developer app
+
+## 2026-07-23 - Phase 3.3
+
+### Learning keywords
+
+- Fedora Asahi bare-metal hosting on Apple Silicon
+- firewalld interface zones for Tailscale-only management
+- OpenSSH drop-in precedence and public-key-only authentication
+- Service-listener inventory and attack-surface reduction

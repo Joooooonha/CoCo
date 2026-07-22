@@ -107,6 +107,7 @@ Figma 디자인을 SwiftUI로 옮기는 작업에서는 사용 가능한 Figma M
 - PostgreSQL 포트를 공용 네트워크에 노출하지 않는다.
 - 일반 iOS API 트래픽은 Cloudflare Tunnel HTTPS를 사용하고 Spring 포트를 인터넷에 직접 공개하지 않는다.
 - Tailscale은 개발자 SSH, 장애 대응과 GitHub Actions 배포를 위한 사설 관리 경로로 제한한다.
+- Mac mini 운영체제는 Fedora Asahi Remix Server다. Docker Engine과 systemd를 사용하고 SSH와 Cockpit은 `tailscale0`의 전용 firewalld 존에서만 허용한다.
 - V2 초기 구성에는 Nginx를 추가하지 않는다. 다중 API 인스턴스, 로컬 버퍼링 또는 Blue/Green 라우팅 필요가 측정될 때 검토한다.
 - 서버에는 요청 본문, 헤더, 연결, 스레드, 작업 큐, DB 커넥션 풀과 컨테이너 자원 상한을 둔다.
 - `/actuator`와 운영 도구는 Cloudflare 공개 호스트에서 접근할 수 없게 한다.

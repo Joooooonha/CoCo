@@ -123,3 +123,21 @@
 - Confirmed API and PostgreSQL memory, CPU, and PID limits were applied by Docker.
 - Pulled `cloudflare/cloudflared:2026.7.2` and confirmed the resolved image is Linux ARM64.
 - Actual Cloudflare hostname routing and Mac mini installation remain pending Cloudflare domain/tunnel configuration and target-machine access.
+
+## 2026-07-23 - Phase 3.3 Fedora Asahi host hardening
+
+- Confirmed the Mac mini runs Fedora Asahi Remix 44 directly on ARM64 with Docker Engine 29.5.2 and Compose 5.1.4.
+- Enabled the existing Tailscale 1.98.3 service at boot, assigned the stable `coco-mac-mini` hostname, and verified direct MacBook-to-server connectivity.
+- Added a dedicated `coco-management` firewalld zone for `tailscale0` that permits only OpenSSH and Cockpit; removed both services from the Wi-Fi zone.
+- Kept the existing n8n and PostgreSQL containers untouched and confirmed n8n remains bound to localhost only.
+- Disabled and masked the unused Passim local caching service and removed its port 27500 listener.
+- Added a version-controlled OpenSSH drop-in that permits only the `joonha` public-key account, blocks root and password login, disables X11 and agent forwarding, and limits authentication pressure.
+- Preserved Cockpit on Tailscale port 9090 and moved the planned CoCo Actuator host binding to loopback port 19090.
+- HIG files loaded: none; this host infrastructure step does not change iOS behavior or presentation.
+
+### Verification
+
+- A fresh public-key SSH connection over Tailscale succeeded after the firewall and SSH reloads.
+- Password-only and root SSH attempts were rejected.
+- Cockpit returned HTTP 200 through Tailscale while Wi-Fi access to ports 22 and 9090 was blocked.
+- Port 27500 was blocked through the management zone before Passim was stopped and masked.

@@ -45,7 +45,7 @@ services:
       COCO_TOMCAT_MAX_CONNECTIONS: ${COCO_TOMCAT_MAX_CONNECTIONS:-200}
       COCO_TOMCAT_ACCEPT_COUNT: ${COCO_TOMCAT_ACCEPT_COUNT:-50}
     ports:
-      - "127.0.0.1:${COCO_MANAGEMENT_PORT:-9090}:9090"
+      - "127.0.0.1:${COCO_MANAGEMENT_PORT:-19090}:9090"
     depends_on:
       postgres:
         condition: service_healthy

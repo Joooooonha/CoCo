@@ -266,6 +266,7 @@ CourseReaction
 
 ### 6.3 Mac mini 배포
 
+- 운영체제는 Fedora Asahi Remix Server이며 Docker Engine과 systemd를 사용한다.
 - Spring 애플리케이션과 PostgreSQL을 Docker Compose로 실행한다.
 - PostgreSQL 포트는 외부에 공개하지 않는다.
 - MVP 실기기 검증은 Tailscale Serve를 사용할 수 있다.
@@ -275,6 +276,8 @@ CourseReaction
 - iOS 앱은 HTTPS API만 사용한다.
 - 서버 설정과 비밀값은 환경 변수로 주입한다.
 - 헬스 체크, 컨테이너 재시작 정책과 데이터 볼륨 백업 절차를 둔다.
+- Wi-Fi에서는 SSH와 Cockpit을 허용하지 않고 Tailscale 전용 firewalld 관리 존에서만 허용한다.
+- SSH는 `joonha` 공개키 로그인만 허용하고 root와 비밀번호 로그인을 차단한다.
 
 Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호를, `cloudflared`가 터널 프록시를, Spring 내장 Tomcat이 HTTP 처리를 담당한다. 여러 API 인스턴스의 로드밸런싱, 로컬 요청 버퍼링 또는 Blue/Green 라우팅이 필요해질 때 측정 근거와 함께 추가한다.
 
