@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface CourseRepository extends JpaRepository<CourseEntity, UUID> {
     @EntityGraph(attributePaths = {"owner", "routePoints", "elements"})
-    @Query("select distinct course from CourseEntity course order by course.name")
+    @Query("select distinct course from CourseEntity course order by course.id")
     List<CourseEntity> findAllWithDetails();
 
     @EntityGraph(attributePaths = {"owner", "routePoints", "elements"})

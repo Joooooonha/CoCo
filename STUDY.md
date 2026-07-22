@@ -27,3 +27,11 @@
 
 - Flyway versioned database migrations
 - JPA collection fetch joins and Cartesian products
+
+## 2026-07-23 - Phase 2.3
+
+### Learning keywords
+
+- Stateless bearer authentication and Spring Security filter chains
+- One-way token hashing and stable API error contracts
+- Controller DTOs versus persistence entities

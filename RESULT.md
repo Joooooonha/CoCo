@@ -50,3 +50,13 @@
 - A real PostgreSQL test exposed both a multiple-bag fetch error and joined-collection duplication; internal collections now use sets and return explicitly sorted lists.
 - HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
 - Verification: `./gradlew test --rerun-tasks` succeeded with Testcontainers PostgreSQL 17; `docker compose config`, container health, Flyway startup, and direct seed counts were also verified.
+
+## 2026-07-23 - Phase 2.3 Guest authentication and course APIs
+
+- Added stateless guest authentication with 30-day bearer tokens; only SHA-256 token hashes are persisted.
+- Added JSON authentication failures and stable API error responses for protected and missing resources.
+- Added authenticated course-list and course-detail endpoints that return route points and course elements in deterministic order.
+- Added integration coverage for guest creation, valid and invalid authentication, both seeded courses, course detail, and missing-course errors.
+- Disabled Spring Boot's unused generated development user so the custom bearer-token flow is the only application authentication path.
+- HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
+- Verification: `./gradlew test --rerun-tasks` succeeded; the Compose-backed server reported `UP`, issued a real guest token, and returned both seeded courses over HTTP.
