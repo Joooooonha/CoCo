@@ -188,7 +188,8 @@
 - Added a forced-command SSH entrypoint that accepts only `deploy sha-<40-character-commit>`.
 - Added a main-only GitHub Actions deploy job using Tailscale Workload Identity Federation and `tailscale/github-action@v4`.
 - Prevented main-branch workflows from being cancelled during deployment while retaining cancellation for superseded pull-request runs.
-- Stored the restricted deployment private key and pinned Mac mini host key in GitHub Secrets; kept CD disabled until the Tailscale identity and access grant are configured.
+- Stored the restricted deployment private key, pinned Mac mini host key, and Tailscale OIDC values in GitHub Secrets; CD is enabled with `COCO_CD_ENABLED=true`.
+- Added Tailscale `tag:ci` and `host:coco-mac-mini` definitions, preserving owner-device access while allowing CI only to `tcp:22` on the Mac mini.
 - Deferred scheduled backups because production currently contains only reproducible seed data; backups become mandatory before user-created data or the next Flyway migration.
 - HIG files loaded: none; this deployment automation does not change iOS behavior or presentation.
 
@@ -198,5 +199,7 @@
 - `bash -n` passed for all deployment scripts, and the forced-command entrypoint rejected an unsupported SSH command with exit code `64`.
 - Deployed the current immutable SHA image on the Mac mini and confirmed the API became healthy.
 - Deliberately deployed a nonexistent valid-format SHA; the pull failed, the script restored the previous image digest, and Actuator returned `UP`.
-- Verified that GitHub contains `COCO_DEPLOY_SSH_KEY` and `COCO_DEPLOY_KNOWN_HOSTS`, while `COCO_CD_ENABLED` remains `false`.
-- End-to-end GitHub deployment remains pending the Tailscale federated identity, `tag:ci` access grant, and first manual workflow run.
+- Verified the GitHub OIDC Subject against the numeric owner and repository IDs received from the issuer.
+- GitHub Actions run `29952359896` passed server tests, published the ARM64 image, joined Tailscale as an ephemeral `tag:ci` node, and deployed through the restricted SSH command.
+- Confirmed Mac mini container `coco-api-1` is healthy and runs revision `0ce7891613f6287425a9bf19404aead8a6dac0c3` after the workflow.
+- Confirmed the public API remains reachable through Cloudflare and returns the expected authenticated response boundary.

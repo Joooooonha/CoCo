@@ -195,9 +195,11 @@ Debug의 `http://localhost:8080`은 MacBook 로컬 개발용으로 유지한다.
 
 Tailscale Admin Console의 **Trust credentials**에서 GitHub Actions OpenID Connect 자격 증명을 만든다.
 
-- Subject: `repo:Joooooonha/CoCo:ref:refs/heads/main`
+- Subject: `repo:Joooooonha@165540848/CoCo@1308896306:ref:refs/heads/main`
 - Scope: `auth_keys`
 - Tag: `tag:ci`
+
+이 tailnet의 GitHub issuer는 저장소 이름뿐 아니라 owner와 repository의 numeric ID도 Subject에 포함한다. Tailscale 상세 화면의 `Received ... from issuer` 값을 기준으로 맞춘다.
 
 발급된 값은 다음 GitHub repository secrets에 저장한다. Client ID와 Audience는 장기 비밀이 아니지만 workflow 설정을 한곳에서 관리하기 위해 secrets로 둔다.
 
@@ -206,7 +208,7 @@ Tailscale Admin Console의 **Trust credentials**에서 GitHub Actions OpenID Con
 - `COCO_DEPLOY_SSH_KEY`
 - `COCO_DEPLOY_KNOWN_HOSTS`
 
-모든 설정과 수동 workflow 검증이 끝난 뒤 repository variable `COCO_CD_ENABLED`를 `true`로 바꾼다. GitHub Actions가 만드는 Tailscale 노드는 workflow 종료 후 제거되는 ephemeral 노드다.
+repository variable `COCO_CD_ENABLED`는 현재 `true`다. GitHub Actions가 만드는 Tailscale 노드는 workflow 종료 후 제거되는 ephemeral 노드다. Tailscale 정책은 사용자 계정의 기존 접근을 유지하면서 `tag:ci`에서 `host:coco-mac-mini`의 `tcp:22`로 향하는 연결만 추가 허용한다.
 
 수동 배포와 장애 대응은 다음 명령을 사용한다.
 
