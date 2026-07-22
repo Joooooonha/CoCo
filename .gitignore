@@ -25,3 +25,6 @@ backups/
 
 # Local third-party skill corpus
 HIGAgentSkills-main/
+
+# Local AI session logs
+codexworkhistory.md
