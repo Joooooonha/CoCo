@@ -1,0 +1,42 @@
+name: coco
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${COCO_DB_NAME:-coco}
+      POSTGRES_USER: ${COCO_DB_USER:-coco}
+      POSTGRES_PASSWORD: "${COCO_DB_PASSWORD:?COCO_DB_PASSWORD must be set}"
+    volumes:
+      - coco-postgres-production-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${COCO_DB_USER:-coco} -d ${COCO_DB_NAME:-coco}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: ./server
+    image: coco-api:local
+    environment:
+      COCO_DB_URL: jdbc:postgresql://postgres:5432/${COCO_DB_NAME:-coco}
+      COCO_DB_USER: ${COCO_DB_USER:-coco}
+      COCO_DB_PASSWORD: "${COCO_DB_PASSWORD:?COCO_DB_PASSWORD must be set}"
+    ports:
+      - "127.0.0.1:${COCO_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
+volumes:
+  coco-postgres-production-data:

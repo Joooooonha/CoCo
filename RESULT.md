@@ -85,3 +85,21 @@
 - On an iPhone 16e simulator, the app created a guest, stored the token, and displayed both PostgreSQL courses. Restarting the app left guest and token row counts unchanged, confirming Keychain reuse.
 - Visually checked the loaded state in light and dark appearances and the compact failed/retry state. The new states use semantic colors and Dynamic Type styles.
 - No iOS test target exists yet, so URL decoding and state transitions still need automated client tests in a later quality pass.
+
+## 2026-07-23 - Phase 3.1 Production deployment package
+
+- Added a multi-stage Java 21 image that builds the Spring Boot JAR and runs it as a non-root user with an Actuator health check.
+- Kept the local PostgreSQL-only Compose workflow unchanged and added a separate production Compose stack that requires an explicit database password.
+- The production PostgreSQL service has no host port. The API is published only on `127.0.0.1` for private HTTPS proxying through Tailscale Serve.
+- Added guarded PostgreSQL custom-format backup and restore scripts. Restore stops the API, replaces the database contents, and waits for the API to become healthy again.
+- Added Mac mini deployment, update, Tailscale Serve, iPhone verification, backup, restore, and diagnostics instructions in `DEPLOYMENT.md`.
+- HIG files loaded: none; this infrastructure-only step does not change iOS behavior or presentation.
+
+### Verification
+
+- Built the production image and started a separate ARM64 Compose stack on port `18080`; PostgreSQL and the API both became healthy.
+- Confirmed Actuator status `UP`, guest-token issuance, and retrieval of both seeded courses through the containerized API.
+- Restarted the API container and confirmed it returned to healthy state.
+- Created a database probe, made a custom-format backup, deleted the probe, restored the backup, and recovered the exact `verified` value.
+- Confirmed the API was bound to `127.0.0.1:18080` and PostgreSQL exposed no host port.
+- `./gradlew test --no-daemon` succeeded. Actual Mac mini Tailscale HTTPS and iPhone verification remain pending target-machine access.

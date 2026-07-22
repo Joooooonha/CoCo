@@ -42,3 +42,12 @@
 
 - Swift Concurrency with `URLSession` and `Codable`
 - Keychain token storage and App Transport Security
+
+## 2026-07-23 - Phase 3.1
+
+### Learning keywords
+
+- Docker multi-stage builds and non-root Java containers
+- Compose health-based startup dependencies and loopback-only port publishing
+- PostgreSQL custom-format backup and guarded restore
+- Tailscale Serve private HTTPS versus public Funnel exposure

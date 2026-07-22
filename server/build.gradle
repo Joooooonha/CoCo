@@ -42,6 +42,10 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+tasks.named('bootJar') {
+	archiveFileName = 'coco-server.jar'
+}
+
 tasks.withType(JavaCompile).configureEach {
 	options.release = 21
 }

@@ -16,8 +16,12 @@ build/
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.p12
 *.mobileprovision
+
+# Database backups
+backups/
 
 # Local third-party skill corpus
 HIGAgentSkills-main/
