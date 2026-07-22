@@ -15,7 +15,7 @@ on:
 
 concurrency:
   group: server-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   IMAGE_NAME: ghcr.io/joooooonha/coco-api
@@ -90,3 +90,45 @@ jobs:
           cache-to: type=gha,mode=max,scope=coco-api-arm64
           provenance: mode=max
           sbom: true
+
+  deploy:
+    name: Deploy to Mac mini
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      vars.COCO_CD_ENABLED == 'true'
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Connect to the deployment tailnet
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: 100.117.201.13
+
+      - name: Configure restricted deployment SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.COCO_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.COCO_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/coco_deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/coco_deploy ~/.ssh/known_hosts
+
+      - name: Deploy immutable API image
+        run: |
+          ssh \
+            -i ~/.ssh/coco_deploy \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            joonha@100.117.201.13 \
+            "deploy sha-${GITHUB_SHA}"

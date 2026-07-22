@@ -181,3 +181,22 @@
 - Plain HTTP returned `301` to the same HTTPS path.
 - `/` and `/actuator/health` returned Cloudflare `403`, while valid `/api/` traffic continued to reach Spring.
 - Eight rapid guest-creation requests returned five `201` responses followed by three `429` responses; a request after the 10-second mitigation window returned `201`.
+
+## 2026-07-23 - Phase 3.6 Restricted continuous deployment foundation
+
+- Added an immutable-SHA deployment script that verifies the image revision label, serializes deployments with `flock`, waits for API health, and rolls back to the previous image digest on failure.
+- Added a forced-command SSH entrypoint that accepts only `deploy sha-<40-character-commit>`.
+- Added a main-only GitHub Actions deploy job using Tailscale Workload Identity Federation and `tailscale/github-action@v4`.
+- Prevented main-branch workflows from being cancelled during deployment while retaining cancellation for superseded pull-request runs.
+- Stored the restricted deployment private key and pinned Mac mini host key in GitHub Secrets; kept CD disabled until the Tailscale identity and access grant are configured.
+- Deferred scheduled backups because production currently contains only reproducible seed data; backups become mandatory before user-created data or the next Flyway migration.
+- HIG files loaded: none; this deployment automation does not change iOS behavior or presentation.
+
+### Verification
+
+- Removed nine guest users created by HTTPS and rate-limit verification while preserving the two seeded course owners and both courses.
+- `bash -n` passed for all deployment scripts, and the forced-command entrypoint rejected an unsupported SSH command with exit code `64`.
+- Deployed the current immutable SHA image on the Mac mini and confirmed the API became healthy.
+- Deliberately deployed a nonexistent valid-format SHA; the pull failed, the script restored the previous image digest, and Actuator returned `UP`.
+- Verified that GitHub contains `COCO_DEPLOY_SSH_KEY` and `COCO_DEPLOY_KNOWN_HOSTS`, while `COCO_CD_ENABLED` remains `false`.
+- End-to-end GitHub deployment remains pending the Tailscale federated identity, `tag:ci` access grant, and first manual workflow run.

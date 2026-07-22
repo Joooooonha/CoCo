@@ -18,6 +18,8 @@ install -m 0644 "${ROOT_DIR}/compose.production.yaml" "${STAGING_DIR}/coco/compo
 install -m 0644 "${ROOT_DIR}/.env.production.example" "${STAGING_DIR}/coco/.env.production.example"
 install -m 0755 "${ROOT_DIR}/scripts/backup-postgres.sh" "${STAGING_DIR}/coco/scripts/backup-postgres.sh"
 install -m 0755 "${ROOT_DIR}/scripts/restore-postgres.sh" "${STAGING_DIR}/coco/scripts/restore-postgres.sh"
+install -m 0755 "${ROOT_DIR}/scripts/deploy-api.sh" "${STAGING_DIR}/coco/scripts/deploy-api.sh"
+install -m 0755 "${ROOT_DIR}/scripts/ci-deploy-entrypoint.sh" "${STAGING_DIR}/coco/scripts/ci-deploy-entrypoint.sh"
 install -m 0644 \
     "${ROOT_DIR}/ops/fedora/sshd/00-coco-hardening.conf" \
     "${STAGING_DIR}/coco/ops/fedora/sshd/00-coco-hardening.conf"

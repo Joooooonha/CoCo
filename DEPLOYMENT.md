@@ -177,24 +177,48 @@ https://api.cocorun.site
 
 Debug의 `http://localhost:8080`은 MacBook 로컬 개발용으로 유지한다.
 
-## 9. 업데이트
+## 9. 업데이트와 자동 배포
 
 `main`에 서버 변경이 push되면 `.github/workflows/server-ci.yml`이 테스트 후 다음 이미지를 발행한다.
 
 - `ghcr.io/joooooonha/coco-api:latest`
 - `ghcr.io/joooooonha/coco-api:sha-<전체-커밋-SHA>`
 
-현재 Mac mini 반영 단계는 수동 pull이다.
+`COCO_CD_ENABLED=true`인 경우 publish job 성공 후 deploy job이 이어서 실행된다.
+
+1. GitHub Actions가 Tailscale Workload Identity로 `tag:ci` 임시 노드를 만든다.
+2. `tag:ci`는 Tailscale 정책에서 `coco-mac-mini:22`만 접근할 수 있다.
+3. GitHub 전용 SSH 키는 Mac mini의 `authorized_keys`에서 강제 명령으로 제한된다.
+4. workflow는 `deploy sha-<커밋>`만 전달할 수 있다.
+5. `deploy-api.sh`는 immutable 이미지를 pull하고 이미지 revision 라벨을 커밋 SHA와 대조한다.
+6. API가 healthy가 아니면 이전 로컬 이미지 digest로 자동 롤백한다.
+
+Tailscale Admin Console의 **Trust credentials**에서 GitHub Actions OpenID Connect 자격 증명을 만든다.
+
+- Subject: `repo:Joooooonha/CoCo:ref:refs/heads/main`
+- Scope: `auth_keys`
+- Tag: `tag:ci`
+
+발급된 값은 다음 GitHub repository secrets에 저장한다. Client ID와 Audience는 장기 비밀이 아니지만 workflow 설정을 한곳에서 관리하기 위해 secrets로 둔다.
+
+- `TS_OAUTH_CLIENT_ID`
+- `TS_AUDIENCE`
+- `COCO_DEPLOY_SSH_KEY`
+- `COCO_DEPLOY_KNOWN_HOSTS`
+
+모든 설정과 수동 workflow 검증이 끝난 뒤 repository variable `COCO_CD_ENABLED`를 `true`로 바꾼다. GitHub Actions가 만드는 Tailscale 노드는 workflow 종료 후 제거되는 ephemeral 노드다.
+
+수동 배포와 장애 대응은 다음 명령을 사용한다.
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yaml pull api
-docker compose --env-file .env.production -f compose.production.yaml up -d --wait api
-curl --fail --silent --show-error http://127.0.0.1:19090/actuator/health
+./scripts/deploy-api.sh sha-<전체-커밋-SHA>
 ```
 
-롤백은 `.env.production`의 `COCO_API_IMAGE`를 정상 동작했던 `sha-<전체-커밋-SHA>` 태그로 바꾸고 같은 pull/up 명령을 실행한다. 다음 단계에서 GitHub Actions가 임시 Tailscale 노드로 접속해 이 반영과 헬스 체크를 자동화한다.
+필요하면 정상 동작했던 SHA 태그로 같은 스크립트를 다시 실행한다. 자동 배포 스크립트 자체가 실패한 경우 `.env.production`의 `COCO_API_IMAGE`를 정상 이미지 digest나 SHA 태그로 바꾸고 Compose의 pull/up 명령을 실행한다.
 
 ## 10. 백업과 복구
+
+현재는 재생성 가능한 시드 코스만 있으므로 정기 백업을 CD의 선행 조건으로 두지 않는다. 실제 사용자가 코스, 스크랩 또는 반응을 저장하기 전이나 다음 Flyway 스키마 변경 전에는 정기 백업과 외부 저장장치 복사를 활성화한다.
 
 ```bash
 ./scripts/backup-postgres.sh
