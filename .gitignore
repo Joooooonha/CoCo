@@ -1,0 +1,23 @@
+# macOS and Xcode user state
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Swift and build output
+.build/
+build/
+
+# Gradle and Java build output
+.gradle/
+**/build/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+
+# Local third-party skill corpus
+HIGAgentSkills-main/
