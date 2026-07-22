@@ -18,6 +18,27 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiErrorResponse> handleBadRequest(BadRequestException exception) {
+        return ResponseEntity.badRequest().body(
+                ApiErrorResponse.of(HttpStatus.BAD_REQUEST.value(), exception.getCode(), exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbidden(ForbiddenOperationException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                ApiErrorResponse.of(HttpStatus.FORBIDDEN.value(), exception.getCode(), exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleConflict(ConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ApiErrorResponse.of(HttpStatus.CONFLICT.value(), exception.getCode(), exception.getMessage())
+        );
+    }
+
     @ExceptionHandler({MethodArgumentNotValidException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiErrorResponse> handleInvalidRequest(Exception exception) {
         return ResponseEntity.badRequest().body(

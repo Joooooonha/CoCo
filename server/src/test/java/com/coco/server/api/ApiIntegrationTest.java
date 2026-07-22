@@ -2,10 +2,14 @@ package com.coco.server.api;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.coco.server.course.CourseRepository;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +38,9 @@ class ApiIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private CourseRepository courseRepository;
 
     @Test
     void guestCanAuthenticateAndReadCourses() throws Exception {
@@ -203,6 +210,197 @@ class ApiIntegrationTest {
         mockMvc.perform(get("/api/v1/me/courses").header(HttpHeaders.AUTHORIZATION, authorization))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void ownerCanRegisterCourseAndSeeItInLists() throws Exception {
+        String authorization = issueGuestAuthorization();
+        UUID courseId = null;
+
+        try {
+            String createdBody = mockMvc.perform(post("/api/v1/courses")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(validCourseJson("퇴근길 야간 러닝")))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.name").value("퇴근길 야간 러닝"))
+                    .andExpect(jsonPath("$.locationLabel").value("서울"))
+                    .andExpect(jsonPath("$.routePoints.length()").value(3))
+                    .andExpect(jsonPath("$.routePoints[0].sequence").value(0))
+                    .andExpect(jsonPath("$.elements.length()").value(1))
+                    .andExpect(jsonPath("$.scrapCount").value(0))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            courseId = UUID.fromString(objectMapper.readTree(createdBody).get("id").asText());
+
+            mockMvc.perform(get("/api/v1/me/courses").header(HttpHeaders.AUTHORIZATION, authorization))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items.length()").value(1))
+                    .andExpect(jsonPath("$.items[0].id").value(courseId.toString()));
+
+            mockMvc.perform(get("/api/v1/courses").header(HttpHeaders.AUTHORIZATION, authorization))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items.length()").value(3));
+        } finally {
+            if (courseId != null) {
+                courseRepository.deleteById(courseId);
+            }
+        }
+    }
+
+    @Test
+    void courseRegistrationRequiresElementsAndValidSequences() throws Exception {
+        String authorization = issueGuestAuthorization();
+
+        String withoutElements = validCourseJson("요소 없는 코스").replace(
+                elementListJson(),
+                "[]"
+        );
+        mockMvc.perform(post("/api/v1/courses")
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(withoutElements))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        String duplicatedSequence = validCourseJson("순서 중복 코스").replace(
+                "\"sequence\":1",
+                "\"sequence\":0"
+        );
+        mockMvc.perform(post("/api/v1/courses")
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(duplicatedSequence))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ROUTE_POINTS_INVALID"));
+
+        String recordedSource = validCourseJson("기록 소스 코스").replace(
+                "PLANNED_MAPKIT",
+                "RECORDED_GPS"
+        );
+        mockMvc.perform(post("/api/v1/courses")
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(recordedSource))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ROUTE_SOURCE_UNSUPPORTED"));
+    }
+
+    @Test
+    void ownerManagesElementsAndMinimumIsEnforced() throws Exception {
+        String authorization = issueGuestAuthorization();
+        UUID courseId = null;
+
+        try {
+            String createdBody = mockMvc.perform(post("/api/v1/courses")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(validCourseJson("요소 편집 코스")))
+                    .andExpect(status().isCreated())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            JsonNode created = objectMapper.readTree(createdBody);
+            courseId = UUID.fromString(created.get("id").asText());
+            String firstElementId = created.get("elements").get(0).get("id").asText();
+
+            mockMvc.perform(delete("/api/v1/courses/" + courseId + "/elements/" + firstElementId)
+                            .header(HttpHeaders.AUTHORIZATION, authorization))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ELEMENT_MINIMUM_REQUIRED"));
+
+            String addedBody = mockMvc.perform(post("/api/v1/courses/" + courseId + "/elements")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"category":"FACILITY","latitude":37.528,"longitude":126.933,
+                                     "distanceFromStartMeters":900,"title":"음수대","description":"공원 입구 음수대"}
+                                    """))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.category").value("FACILITY"))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            String addedElementId = objectMapper.readTree(addedBody).get("id").asText();
+
+            mockMvc.perform(patch("/api/v1/courses/" + courseId + "/elements/" + addedElementId)
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\":\"고장난 음수대\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.title").value("고장난 음수대"))
+                    .andExpect(jsonPath("$.category").value("FACILITY"));
+
+            mockMvc.perform(delete("/api/v1/courses/" + courseId + "/elements/" + addedElementId)
+                            .header(HttpHeaders.AUTHORIZATION, authorization))
+                    .andExpect(status().isNoContent());
+
+            mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, authorization))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.elements.length()").value(1));
+        } finally {
+            if (courseId != null) {
+                courseRepository.deleteById(courseId);
+            }
+        }
+    }
+
+    @Test
+    void nonOwnerCannotModifySeededCourseElements() throws Exception {
+        String authorization = issueGuestAuthorization();
+        String seededCourseId = "10000000-0000-0000-0000-000000000001";
+        String seededElementId = "12000000-0000-0000-0000-000000000001";
+
+        mockMvc.perform(patch("/api/v1/courses/" + seededCourseId + "/elements/" + seededElementId)
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"탈취 시도\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COURSE_OWNER_ONLY"));
+
+        mockMvc.perform(delete("/api/v1/courses/" + seededCourseId + "/elements/" + seededElementId)
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COURSE_OWNER_ONLY"));
+
+        mockMvc.perform(post("/api/v1/courses/" + seededCourseId + "/elements")
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"category":"VIEW","latitude":37.5,"longitude":126.9,
+                                 "distanceFromStartMeters":10,"title":"불법 요소","description":"소유자 아님"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COURSE_OWNER_ONLY"));
+    }
+
+    private String validCourseJson(String name) {
+        return """
+                {
+                  "name": "%s",
+                  "summary": "테스트로 등록한 코스",
+                  "difficulty": "EASY",
+                  "distanceMeters": 3200,
+                  "estimatedDurationSeconds": 1500,
+                  "routeSource": "PLANNED_MAPKIT",
+                  "routePoints": [
+                    {"sequence":0,"latitude":37.526,"longitude":126.93},
+                    {"sequence":1,"latitude":37.527,"longitude":126.935},
+                    {"sequence":2,"latitude":37.529,"longitude":126.94}
+                  ],
+                  "elements": %s
+                }
+                """.formatted(name, elementListJson());
+    }
+
+    private String elementListJson() {
+        return """
+                [
+                    {"category":"VIEW","latitude":37.527,"longitude":126.935,
+                     "distanceFromStartMeters":400,"title":"강변 전망","description":"노을이 잘 보이는 구간"}
+                  ]
+                """.strip();
     }
 
     private String issueGuestAuthorization() throws Exception {

@@ -31,6 +31,14 @@ public class RoutePointEntity {
     protected RoutePointEntity() {
     }
 
+    public RoutePointEntity(UUID id, CourseEntity course, int sequenceNumber, double latitude, double longitude) {
+        this.id = id;
+        this.course = course;
+        this.sequenceNumber = sequenceNumber;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     public UUID getId() {
         return id;
     }

@@ -70,6 +70,36 @@ public class CourseEntity {
     protected CourseEntity() {
     }
 
+    public CourseEntity(
+            UUID id,
+            UserEntity owner,
+            String name,
+            String summary,
+            CourseDifficulty difficulty,
+            String locationLabel,
+            int distanceMeters,
+            int estimatedDurationSeconds,
+            RouteSource routeSource
+    ) {
+        this.id = id;
+        this.owner = owner;
+        this.name = name;
+        this.summary = summary;
+        this.difficulty = difficulty;
+        this.locationLabel = locationLabel;
+        this.distanceMeters = distanceMeters;
+        this.estimatedDurationSeconds = estimatedDurationSeconds;
+        this.routeSource = routeSource;
+    }
+
+    public void addRoutePoint(RoutePointEntity routePoint) {
+        routePoints.add(routePoint);
+    }
+
+    public void addElement(CourseElementEntity element) {
+        elements.add(element);
+    }
+
     public UUID getId() {
         return id;
     }

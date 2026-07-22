@@ -242,3 +242,18 @@
 - Screenshots confirmed: collapsed panel with visible tab bar, selected course with route/markers/legend and fully visible action chips at the taller collapsed height, expanded list in light and dark mode, and the library scrap list showing the scrapped course.
 - Exercising the scrap and LIKE toggles against the local Spring server persisted real `course_scraps` and `course_reactions` rows; a stale pre-Phase-5 dev server on port 8080 was identified and replaced after the first toggle attempt failed with 401 and correctly rolled back with an inline error message, which also verified the failure path.
 - iOS automated tests still do not exist; decoding and state-transition tests remain a later quality-pass item.
+
+## 2026-07-23 - Phase 6.1 Course registration and element APIs
+
+- Added `POST /api/v1/courses`: the server assigns ownership from the bearer token, validates name/summary/difficulty/distance/duration lengths and ranges with Bean Validation, requires at least two route points and one element, and enforces contiguous zero-based route sequences with a stable `ROUTE_POINTS_INVALID` error.
+- Restricted `routeSource` to `PLANNED_MAPKIT` (`ROUTE_SOURCE_UNSUPPORTED` otherwise) and defaulted a blank `locationLabel` to `서울` because geocoding is out of MVP scope.
+- Added owner-only element `POST`/`PATCH`/`DELETE` endpoints; non-owners receive `403 COURSE_OWNER_ONLY`, and deleting a course's last element is rejected with `409 ELEMENT_MINIMUM_REQUIRED` to preserve the one-element product rule.
+- Added resource caps (2,000 route points, 50 elements per course) in line with the V2 server-protection baseline.
+- Recorded the third 등록 tab decision and the Phase 6 registration contract in `SPEC.md`.
+- HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
+
+### Verification
+
+- `./gradlew test --no-daemon --rerun-tasks` succeeded with Testcontainers PostgreSQL 17.
+- New integration tests cover successful registration appearing in `me/courses` and the shared list, missing-element and duplicated-sequence and unsupported-source rejections, owner element add/patch/delete, the last-element conflict, and S10 non-owner rejections against seeded course elements.
+- Tests that create courses clean them up so seed-count assertions stay deterministic.

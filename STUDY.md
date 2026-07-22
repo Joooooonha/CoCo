@@ -94,3 +94,10 @@
 
 - Optimistic UI updates with rollback on API failure
 - Modal sheet versus in-tab bottom panel when a tab bar must stay reachable
+
+## 2026-07-23 - Phase 6.1
+
+### Learning keywords
+
+- Bean Validation on nested request records with `@Valid` lists
+- Server-side ownership from the token instead of client-sent owner IDs
