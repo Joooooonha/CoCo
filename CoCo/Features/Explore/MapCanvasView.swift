@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MapCanvasView: View {
     @Bindable var store: CourseStore
+    var bottomInset: CGFloat = 190
     @State private var position: MapCameraPosition = .region(.seoulOverview)
 
     var body: some View {
@@ -60,13 +61,13 @@ struct MapCanvasView: View {
             MapCompass()
             MapScaleView()
         }
-        .padding(.bottom, 210)
+        .padding(.bottom, bottomInset + 20)
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .bottomLeading) {
             if store.selectedCourse != nil, store.selectedElement == nil {
                 ElementLegend()
                     .padding(.leading, 12)
-                    .padding(.bottom, 202)
+                    .padding(.bottom, bottomInset + 12)
             }
         }
         .overlay {

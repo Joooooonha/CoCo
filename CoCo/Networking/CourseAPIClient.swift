@@ -16,14 +16,56 @@ struct CourseAPIClient {
     }
 
     func fetchCourses() async throws -> [Course] {
+        try await fetchCourseList(path: "api/v1/courses")
+    }
+
+    func fetchMyScraps() async throws -> [Course] {
+        try await fetchCourseList(path: "api/v1/me/scraps")
+    }
+
+    func fetchMyCourses() async throws -> [Course] {
+        try await fetchCourseList(path: "api/v1/me/courses")
+    }
+
+    func updateScrap(courseID: UUID, isScrapped: Bool) async throws {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/scrap"))
+            request.httpMethod = isScrapped ? "PUT" : "DELETE"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await sendExpectingSuccess(request)
+        }
+    }
+
+    func updateReaction(courseID: UUID, type: ReactionType, isOn: Bool) async throws {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/reactions/\(type.rawValue)"))
+            request.httpMethod = isOn ? "PUT" : "DELETE"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await sendExpectingSuccess(request)
+        }
+    }
+
+    private func fetchCourseList(path: String) async throws -> [Course] {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint(path))
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            let response: CourseListResponse = try await send(request)
+            return response.items
+        }
+    }
+
+    private func withAuthorization<Value>(
+        _ operation: (String) async throws -> Value
+    ) async throws -> Value {
         let token = try await bearerToken()
 
         do {
-            return try await requestCourses(with: token)
+            return try await operation(token)
         } catch APIClientError.unauthorized {
             try tokenStore.delete()
             let renewedToken = try await issueGuestToken()
-            return try await requestCourses(with: renewedToken)
+            return try await operation(renewedToken)
         }
     }
 
@@ -43,15 +85,21 @@ struct CourseAPIClient {
         return response.token
     }
 
-    private func requestCourses(with token: String) async throws -> [Course] {
-        var request = URLRequest(url: endpoint("api/v1/courses"))
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
+        let data = try await validatedData(for: request)
 
-        let response: CourseListResponse = try await send(request)
-        return response.items
+        do {
+            return try JSONDecoder().decode(Response.self, from: data)
+        } catch {
+            throw APIClientError.invalidPayload
+        }
     }
 
-    private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
+    private func sendExpectingSuccess(_ request: URLRequest) async throws {
+        _ = try await validatedData(for: request)
+    }
+
+    private func validatedData(for request: URLRequest) async throws -> Data {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIClientError.invalidResponse
@@ -65,11 +113,7 @@ struct CourseAPIClient {
             throw APIClientError.server(code: errorResponse?.code)
         }
 
-        do {
-            return try JSONDecoder().decode(Response.self, from: data)
-        } catch {
-            throw APIClientError.invalidPayload
-        }
+        return data
     }
 
     private func endpoint(_ path: String) -> URL {

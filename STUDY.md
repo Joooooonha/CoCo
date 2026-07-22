@@ -80,3 +80,17 @@
 - OCI provenance and SBOM attestations
 - Build-on-server versus image-pull deployment
 - Source-free deployment bundles
+
+## 2026-07-23 - Phase 5.1
+
+### Learning keywords
+
+- JPA `@EmbeddedId` composite keys for scrap and reaction uniqueness
+- Grouped aggregate queries with interface projections instead of N+1 counting
+
+## 2026-07-23 - Phase 5.2
+
+### Learning keywords
+
+- Optimistic UI updates with rollback on API failure
+- Modal sheet versus in-tab bottom panel when a tab bar must stay reachable

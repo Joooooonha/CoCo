@@ -218,3 +218,27 @@
 - `./gradlew test --no-daemon --rerun-tasks` succeeded with Testcontainers PostgreSQL 17.
 - New integration tests cover scrap idempotency, per-user scrap isolation, reaction counts across two guests, reaction idempotency, invalid reaction enum rejection, missing-course errors, and the empty personal course list.
 - The pre-existing deprecation compile note in `ApiIntegrationTest` was confirmed to exist before this change.
+
+## 2026-07-23 - Phase 5.2 iOS scrap, reaction, and library
+
+- Confirmed the top-level structure with the user: an iOS tab bar with 탐색 and 보관함 tabs, and scrap/reaction controls on the selected course summary card.
+- Replaced the modal course sheet with a two-stage bottom panel inside the explore tab because a presented `.sheet` covers the tab bar and blocks tab switching; the panel keeps the collapsed/expanded stages, the never-fully-closed rule, background map interaction, a grabber, a chevron button, and a drag gesture.
+- Added scrap and reaction toggle chips (bookmark, thumbs-up, flame, mountain SF Symbols) with per-type counts on the selected course card; on-state uses filled symbols plus a green tinted capsule so state is not conveyed by color alone.
+- Added optimistic updates with rollback and an inline error caption on failure; per-course and per-reaction pending sets prevent duplicate in-flight toggles.
+- Added `LibraryView` with a segmented 스크랩/내 코스 picker, loading, failure-with-retry, per-segment empty states, and pull-to-refresh; library lists are read-only in this milestone.
+- Extended `CourseAPIClient` with scrap/reaction writes and `me/scraps`, `me/courses` reads through a shared 401-renewal wrapper.
+- Updated `SPEC.md` 4.1 and 4.3 to record the confirmed tab-bar structure and the panel-instead-of-modal-sheet decision.
+
+### HIG files loaded
+
+- Tier 1: `accessibility`, `branding`, `color`, `dark-mode`, `design-principles`, `icons`, `images`, `inclusion`, `layout`, `materials`, `motion`, `privacy`, `right-to-left`, `sf-symbols`, `typography`, `writing`.
+- Tier 2: `designing-for-ios`.
+- Tier 3: `tab-bars`, `buttons`, `lists-and-tables`, `sheets`, `feedback`, `toggles`, `maps`, `segmented-controls`.
+
+### Verification
+
+- Debug builds succeeded with Xcode 26.3 and the iOS 26.2 SDK after each step.
+- The Claude Code simulator panel and tap tools were unavailable on this host, so states were verified headlessly on an iPhone 16e simulator with temporary initial-state injection (selected course, expanded stage, library tab) that was fully removed before the final build; the final build contains no injection code.
+- Screenshots confirmed: collapsed panel with visible tab bar, selected course with route/markers/legend and fully visible action chips at the taller collapsed height, expanded list in light and dark mode, and the library scrap list showing the scrapped course.
+- Exercising the scrap and LIKE toggles against the local Spring server persisted real `course_scraps` and `course_reactions` rows; a stale pre-Phase-5 dev server on port 8080 was identified and replaced after the first toggle attempt failed with 401 and correctly rolled back with an inline error message, which also verified the failure path.
+- iOS automated tests still do not exist; decoding and state-transition tests remain a later quality-pass item.

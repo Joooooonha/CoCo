@@ -13,6 +13,9 @@ enum CourseLoadState: Equatable {
 final class CourseStore {
     private(set) var courses: [Course]
     private(set) var loadState: CourseLoadState
+    private(set) var pendingScrapCourseIDs: Set<Course.ID> = []
+    private(set) var pendingReactionKeys: Set<String> = []
+    private(set) var actionErrorMessage: String?
     var selectedCourseID: Course.ID?
     var selectedElement: CourseElement?
     @ObservationIgnored private let apiClient: CourseAPIClient
@@ -71,6 +74,54 @@ final class CourseStore {
         } catch {
             loadState = .failed(message: message(for: error))
         }
+    }
+
+    func isReactionPending(_ type: ReactionType, for courseID: Course.ID) -> Bool {
+        pendingReactionKeys.contains(reactionKey(type, for: courseID))
+    }
+
+    func toggleScrap(for course: Course) async {
+        guard !pendingScrapCourseIDs.contains(course.id) else { return }
+
+        let targetValue = !course.isScrapped
+        pendingScrapCourseIDs.insert(course.id)
+        actionErrorMessage = nil
+        updateCourse(id: course.id) { $0.setScrapped(targetValue) }
+
+        do {
+            try await apiClient.updateScrap(courseID: course.id, isScrapped: targetValue)
+        } catch {
+            updateCourse(id: course.id) { $0.setScrapped(!targetValue) }
+            actionErrorMessage = "스크랩을 저장하지 못했어요. 다시 시도해 주세요."
+        }
+        pendingScrapCourseIDs.remove(course.id)
+    }
+
+    func toggleReaction(_ type: ReactionType, for course: Course) async {
+        let key = reactionKey(type, for: course.id)
+        guard !pendingReactionKeys.contains(key) else { return }
+
+        let targetValue = !course.myReactions.contains(type)
+        pendingReactionKeys.insert(key)
+        actionErrorMessage = nil
+        updateCourse(id: course.id) { $0.setReaction(type, isOn: targetValue) }
+
+        do {
+            try await apiClient.updateReaction(courseID: course.id, type: type, isOn: targetValue)
+        } catch {
+            updateCourse(id: course.id) { $0.setReaction(type, isOn: !targetValue) }
+            actionErrorMessage = "반응을 저장하지 못했어요. 다시 시도해 주세요."
+        }
+        pendingReactionKeys.remove(key)
+    }
+
+    private func updateCourse(id: Course.ID, _ transform: (inout Course) -> Void) {
+        guard let index = courses.firstIndex(where: { $0.id == id }) else { return }
+        transform(&courses[index])
+    }
+
+    private func reactionKey(_ type: ReactionType, for courseID: Course.ID) -> String {
+        "\(courseID.uuidString)-\(type.rawValue)"
     }
 
     private func message(for error: Error) -> String {

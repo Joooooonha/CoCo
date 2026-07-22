@@ -1,15 +1,22 @@
 import SwiftUI
 
+enum ExploreSheetStage {
+    case collapsed
+    case expanded
+}
+
 struct CourseSheetView: View {
     @Bindable var store: CourseStore
-    @Binding var selectedDetent: PresentationDetent
+    @Binding var stage: ExploreSheetStage
 
     private var isExpanded: Bool {
-        selectedDetent == .large
+        stage == .expanded
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            grabber
+
             header
 
             Divider()
@@ -36,6 +43,16 @@ struct CourseSheetView: View {
         .background(Color(uiColor: .systemGroupedBackground))
     }
 
+    private var grabber: some View {
+        Capsule()
+            .fill(Color(uiColor: .systemGray3))
+            .frame(width: 36, height: 5)
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .accessibilityHidden(true)
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -57,7 +74,7 @@ struct CourseSheetView: View {
             Spacer()
 
             Button {
-                selectedDetent = isExpanded ? .height(190) : .large
+                stage = isExpanded ? .collapsed : .expanded
             } label: {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
                     .font(.body.weight(.semibold))
@@ -85,6 +102,7 @@ struct CourseSheetView: View {
         if isExpanded {
             List(store.courses) { course in
                 CourseRow(
+                    store: store,
                     course: course,
                     isSelected: store.selectedCourseID == course.id,
                     showsDetails: store.selectedCourseID == course.id
@@ -96,7 +114,7 @@ struct CourseSheetView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         } else if let selectedCourse = store.selectedCourse {
-            CourseRow(course: selectedCourse, isSelected: true, showsDetails: false) {
+            CourseRow(store: store, course: selectedCourse, isSelected: true, showsDetails: false) {
                 store.toggleSelection(selectedCourse)
             }
             .padding(.horizontal, 16)
@@ -197,71 +215,78 @@ struct CourseSheetView: View {
 }
 
 private struct CourseRow: View {
+    let store: CourseStore
     let course: Course
     let isSelected: Bool
     let showsDetails: Bool
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    Text(ownerInitial)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(.green, in: Circle())
-                        .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 12) {
+            Button(action: action) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Text(ownerInitial)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.green, in: Circle())
+                            .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(course.name)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(course.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+
+                                Text(course.difficulty.displayName)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text("\(course.ownerName) · \(course.locationLabel)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                                 .lineLimit(1)
 
-                            Text(course.difficulty.displayName)
-                                .font(.caption2.weight(.semibold))
+                            Text(String(format: "%.1f km · 약 %d분", course.distanceKilometers, course.estimatedMinutes))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("\(course.ownerName) · \(course.locationLabel)")
+                        Spacer(minLength: 8)
+
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "chevron.right")
+                            .foregroundStyle(isSelected ? Color.green : Color.secondary)
+                            .accessibilityHidden(true)
+                    }
+
+                    if showsDetails {
+                        Divider()
+
+                        Text(course.summary)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                        Text(String(format: "%.1f km · 약 %d분", course.distanceKilometers, course.estimatedMinutes))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "chevron.right")
-                        .foregroundStyle(isSelected ? Color.green : Color.secondary)
-                        .accessibilityHidden(true)
-                }
-
-                if showsDetails {
-                    Divider()
-
-                    Text(course.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    HStack(spacing: 16) {
-                        ElementCount(category: .facility, count: course.elements.count { $0.category == .facility })
-                        ElementCount(category: .caution, count: course.elements.count { $0.category == .caution })
-                        ElementCount(category: .view, count: course.elements.count { $0.category == .view })
+                        HStack(spacing: 16) {
+                            ElementCount(category: .facility, count: course.elements.count { $0.category == .facility })
+                            ElementCount(category: .caution, count: course.elements.count { $0.category == .caution })
+                            ElementCount(category: .view, count: course.elements.count { $0.category == .view })
+                        }
                     }
                 }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint(isSelected ? "다시 탭하면 선택을 해제합니다" : "지도에 코스 경로를 표시합니다")
+
+            if isSelected {
+                CourseActionBar(store: store, course: course)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(isSelected ? "다시 탭하면 선택을 해제합니다" : "지도에 코스 경로를 표시합니다")
     }
 
     private var ownerInitial: String {
@@ -270,6 +295,77 @@ private struct CourseRow: View {
 
     private var accessibilityLabel: String {
         "\(course.name), \(course.difficulty.displayName), \(course.ownerName), \(course.locationLabel), \(String(format: "%.1f", course.distanceKilometers))킬로미터, 약 \(course.estimatedMinutes)분"
+    }
+}
+
+private struct CourseActionBar: View {
+    let store: CourseStore
+    let course: Course
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    scrapButton
+
+                    ForEach(ReactionType.allCases, id: \.self) { reaction in
+                        reactionButton(reaction)
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+
+            if let actionErrorMessage = store.actionErrorMessage {
+                Text(actionErrorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var scrapButton: some View {
+        Button {
+            Task {
+                await store.toggleScrap(for: course)
+            }
+        } label: {
+            Label("\(course.scrapCount)", systemImage: course.isScrapped ? "bookmark.fill" : "bookmark")
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 28)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .tint(course.isScrapped ? .green : .secondary)
+        .disabled(store.pendingScrapCourseIDs.contains(course.id))
+        .accessibilityLabel("스크랩")
+        .accessibilityValue("\(course.scrapCount)개")
+        .accessibilityHint(course.isScrapped ? "탭하면 스크랩을 해제합니다" : "탭하면 보관함에 저장합니다")
+        .accessibilityAddTraits(course.isScrapped ? .isSelected : [])
+    }
+
+    private func reactionButton(_ reaction: ReactionType) -> some View {
+        let isOn = course.myReactions.contains(reaction)
+
+        return Button {
+            Task {
+                await store.toggleReaction(reaction, for: course)
+            }
+        } label: {
+            Label(
+                "\(course.reactionCounts.count(for: reaction))",
+                systemImage: isOn ? reaction.filledSymbolName : reaction.symbolName
+            )
+            .font(.subheadline.weight(.semibold))
+            .frame(minHeight: 28)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .tint(isOn ? .green : .secondary)
+        .disabled(store.isReactionPending(reaction, for: course.id))
+        .accessibilityLabel(reaction.displayName)
+        .accessibilityValue("\(course.reactionCounts.count(for: reaction))개")
+        .accessibilityHint(isOn ? "탭하면 반응을 해제합니다" : "탭하면 반응을 남깁니다")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
