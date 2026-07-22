@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -82,5 +83,16 @@ class ApiIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    @Test
+    void oversizedRequestBodyIsRejectedBeforeApplicationHandling() throws Exception {
+        String oversizedJson = "{\"padding\":\"" + "a".repeat(262_144) + "\"}";
+
+        mockMvc.perform(post("/api/v1/auth/guest")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(oversizedJson))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(jsonPath("$.code").value("REQUEST_BODY_TOO_LARGE"));
     }
 }

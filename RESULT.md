@@ -103,3 +103,23 @@
 - Created a database probe, made a custom-format backup, deleted the probe, restored the backup, and recovered the exact `verified` value.
 - Confirmed the API was bound to `127.0.0.1:18080` and PostgreSQL exposed no host port.
 - `./gradlew test --no-daemon` succeeded. Actual Mac mini Tailscale HTTPS and iPhone verification remain pending target-machine access.
+
+## 2026-07-23 - Phase 3.2 Cloudflare home-server foundation
+
+- Revised the V2 scope around TestFlight beta distribution, Sign in with Apple, guest-account migration, Cloudflare public API access, Tailscale-only operations, CI/CD, and server resource protection.
+- Replaced the planned public Tailscale path with a remotely managed Cloudflare Tunnel that connects directly to the private Compose API service; no Spring or PostgreSQL application port is published on the Mac mini.
+- Moved Actuator to a separate loopback-only management port so Cloudflare cannot route health and management endpoints.
+- Added request-body, Tomcat thread/connection/queue, Hikari connection-pool, container memory/CPU/PID, and log-rotation limits with environment-variable overrides.
+- Added a servlet request-size guard that handles both declared and streamed bodies and returns a stable `413 REQUEST_BODY_TOO_LARGE` response.
+- Documented the Cloudflare hostname, WAF and rate-limit baseline, Tailscale administration path, production environment setup, deployment, verification, backup, restore, and rollback flow.
+- HIG files loaded: none; this infrastructure and server-protection step does not change iOS behavior or presentation.
+
+### Verification
+
+- `./gradlew test --no-daemon --rerun-tasks` succeeded, including an oversized JSON integration test.
+- `docker compose config --quiet` accepted the production configuration with required secrets supplied.
+- Started the ARM64 production API and PostgreSQL services and confirmed both became healthy.
+- Confirmed the API issued a real guest token while the host exposed only `127.0.0.1:19090` for Actuator; the API port did not expose Actuator.
+- Confirmed API and PostgreSQL memory, CPU, and PID limits were applied by Docker.
+- Pulled `cloudflare/cloudflared:2026.7.2` and confirmed the resolved image is Linux ARM64.
+- Actual Cloudflare hostname routing and Mac mini installation remain pending Cloudflare domain/tunnel configuration and target-machine access.

@@ -24,9 +24,9 @@ WORKDIR /app
 COPY --from=builder --chown=coco:coco /workspace/build/libs/coco-server.jar ./app.jar
 
 USER coco
-EXPOSE 8080
+EXPOSE 8080 9090
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
-    CMD curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health || exit 1
+    CMD curl --fail --silent --show-error http://127.0.0.1:9090/actuator/health || exit 1
 
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]

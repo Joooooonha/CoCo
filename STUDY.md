@@ -51,3 +51,13 @@
 - Compose health-based startup dependencies and loopback-only port publishing
 - PostgreSQL custom-format backup and guarded restore
 - Tailscale Serve private HTTPS versus public Funnel exposure
+
+## 2026-07-23 - Phase 3.2
+
+### Learning keywords
+
+- Cloudflare Tunnel outbound connections and origin port isolation
+- Edge WAF/rate limiting versus application-level capacity limits
+- Tomcat worker pools, Hikari database connection pools, and backpressure
+- Separate public API and loopback-only Actuator management ports
+- TestFlight beta distribution versus the Apple Developer app
