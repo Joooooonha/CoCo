@@ -165,6 +165,10 @@
 
 - Registered `cocorun.site` through Gabia and delegated authoritative DNS to Cloudflare.
 - Fixed the public production API hostname at `api.cocorun.site` across deployment examples and the iOS Release configuration.
+- Created the remotely managed `coco-production` tunnel and routed `api.cocorun.site` to the private Compose service at `http://api:8080`.
+- Started PostgreSQL 17, the GHCR ARM64 Spring image, and pinned `cloudflared` on the Fedora Asahi Mac mini with no public origin ports.
+- Enabled Always Use HTTPS, the default Free Managed Ruleset, a custom non-API-path block rule, and the single Free-plan rate limit for guest creation.
+- Kept HSTS disabled until the HTTPS deployment and recovery process have a longer stable operating history.
 - Kept the tunnel token and database password out of version control.
 - HIG files loaded: none; this infrastructure configuration does not change iOS presentation.
 
@@ -172,4 +176,8 @@
 
 - Public DNS returned both assigned Cloudflare nameservers for `cocorun.site`.
 - An unsigned Release simulator build succeeded and its generated plist contains `https://api.cocorun.site`.
-- Cloudflare Tunnel connector startup, public hostname routing, and HTTPS API verification remain pending the production secret setup on the Mac mini.
+- PostgreSQL and Spring became healthy, local Actuator reported `UP`, and three redundant Seoul Cloudflare tunnel connections registered.
+- Public HTTPS guest creation returned `201`; authenticated course retrieval returned `200` with both seeded courses.
+- Plain HTTP returned `301` to the same HTTPS path.
+- `/` and `/actuator/health` returned Cloudflare `403`, while valid `/api/` traffic continued to reach Spring.
+- Eight rapid guest-creation requests returned five `201` responses followed by three `429` responses; a request after the 10-second mitigation window returned `201`.

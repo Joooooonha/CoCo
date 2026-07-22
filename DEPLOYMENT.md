@@ -130,13 +130,23 @@ curl --fail --silent --show-error https://api.cocorun.site/api/v1/auth/guest -X 
 
 ## 6. Cloudflare 보호 설정
 
-Cloudflare Security에서 실제 트래픽을 관찰하며 다음 순서로 적용한다.
+현재 Free 플랜 운영 기준은 다음과 같다.
 
-1. HTTP DDoS Managed Rules 기본 활성 상태를 유지한다.
-2. WAF Managed Rules를 활성화한다.
-3. `/api/v1/auth/guest`에 IP 기준의 낮은 Rate Limit을 둔다.
-4. 코스 등록과 반응 같은 쓰기 경로에 읽기보다 낮은 Rate Limit을 둔다.
-5. `/actuator*` 경로를 Edge에서도 차단한다.
+1. **Always Use HTTPS**를 켜서 모든 HTTP 요청을 HTTPS로 리디렉션한다.
+2. HTTP DDoS Managed Rules와 Free Managed Ruleset의 기본 보호를 유지한다.
+3. `Block non-API paths` 사용자 지정 규칙으로 `api.cocorun.site`에서 `/api/`로 시작하지 않는 경로를 차단한다.
+4. `Limit guest creation` 속도 제한 규칙으로 `/api/v1/auth/guest`를 IP당 10초에 5회로 제한하고 초과 시 10초간 차단한다.
+5. 일반 iOS 사용자가 접근해야 하므로 API 호스트에는 Cloudflare Access 로그인을 요구하지 않는다.
+
+사용자 지정 규칙 표현식:
+
+```text
+http.host eq "api.cocorun.site" and not starts_with(http.request.uri.path, "/api/")
+```
+
+Free 플랜은 속도 제한 규칙 1개와 10초 집계/차단 기간만 지원한다. 이후 코스 등록, 반응, 소셜 로그인 같은 쓰기 API가 추가되면 애플리케이션 내부 제한을 우선 추가하고 Cloudflare 플랜 변경 여부를 트래픽 근거로 결정한다.
+
+HSTS는 초기 운영 안정화와 복구 절차 검증 전까지 켜지 않는다. 브라우저에 장기간 캐시되는 정책이므로 HTTPS 구성을 되돌릴 가능성이 없어진 뒤 별도 적용한다.
 
 Cloudflare Rate Limit은 짧은 집계 지연이 있을 수 있으므로 Spring의 인증, 요청 크기와 자원 상한을 제거하지 않는다.
 
