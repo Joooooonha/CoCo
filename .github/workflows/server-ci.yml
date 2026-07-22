@@ -111,7 +111,6 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
-          ping: 100.117.201.13
 
       - name: Configure restricted deployment SSH key
         env:
