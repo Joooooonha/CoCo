@@ -67,7 +67,7 @@
 - Added Keychain storage for the bearer token and automatic one-time guest-token renewal after a `401` response.
 - Added explicit idle, loading, loaded, empty, and failed states with inline retry actions in both sheet detents; startup failures do not present an alert or block map interaction.
 - Kept deterministic seed data only for SwiftUI previews.
-- Added a build-configured API base URL. Debug uses `localhost:8080` with an ATS exception limited to `localhost`; Release uses an HTTPS placeholder that must be replaced during Mac mini deployment.
+- Added a build-configured API base URL. Debug uses `localhost:8080` with an ATS exception limited to `localhost`; Release uses `https://api.cocorun.site`.
 - Implemented this local Phase 4 slice before Phase 3 deployment to verify the server contract end to end. Mac mini, Tailscale, and HTTPS deployment remain the next infrastructure milestone.
 - Phase 5 guest-token storage was pulled forward because authenticated Phase 2 reads require it. Scrap, reaction, and personal-course features remain untouched.
 
@@ -81,7 +81,7 @@
 ### Verification
 
 - Signed Debug and unsigned Release simulator builds succeeded with Xcode 26.3 and the iOS 26.2 SDK.
-- The generated Debug plist contains the localhost API URL and localhost-only ATS exception; the generated Release plist contains `https://api.coco.invalid`.
+- The generated Debug plist contains the localhost API URL and localhost-only ATS exception; the generated Release plist contains `https://api.cocorun.site`.
 - On an iPhone 16e simulator, the app created a guest, stored the token, and displayed both PostgreSQL courses. Restarting the app left guest and token row counts unchanged, confirming Keychain reuse.
 - Visually checked the loaded state in light and dark appearances and the compact failed/retry state. The new states use semantic colors and Dynamic Type styles.
 - No iOS test target exists yet, so URL decoding and state transitions still need automated client tests in a later quality pass.
@@ -160,3 +160,16 @@
 - Anonymous GHCR inspection found the Linux ARM64 image plus provenance/SBOM attestation and matching `latest` and commit-SHA digests.
 - The Fedora Asahi Mac mini anonymously pulled the commit-SHA image and confirmed `architecture=arm64,user=coco`.
 - The Mac mini `~/coco` directory contains only five deployment files and no Spring source.
+
+## 2026-07-23 - Phase 3.5 Production domain activation
+
+- Registered `cocorun.site` through Gabia and delegated authoritative DNS to Cloudflare.
+- Fixed the public production API hostname at `api.cocorun.site` across deployment examples and the iOS Release configuration.
+- Kept the tunnel token and database password out of version control.
+- HIG files loaded: none; this infrastructure configuration does not change iOS presentation.
+
+### Verification
+
+- Public DNS returned both assigned Cloudflare nameservers for `cocorun.site`.
+- An unsigned Release simulator build succeeded and its generated plist contains `https://api.cocorun.site`.
+- Cloudflare Tunnel connector startup, public hostname routing, and HTTPS API verification remain pending the production secret setup on the Mac mini.

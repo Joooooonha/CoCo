@@ -69,7 +69,7 @@ sudo systemctl mask --now passim.service
 
 1. Cloudflare Dashboard의 **Networking > Tunnels**에서 `coco-production` 터널을 만든다.
 2. Docker 환경을 선택하고 표시되는 터널 토큰을 별도로 보관한다.
-3. 공개 호스트 이름을 `api.<보유한-도메인>`으로 만든다.
+3. 공개 호스트 이름을 `api.cocorun.site`로 만든다.
 4. 서비스 주소를 `http://api:8080`으로 지정한다.
 5. 일반 iOS 사용자가 접근해야 하므로 이 API 호스트에 Cloudflare Access 로그인을 요구하지 않는다.
 
@@ -100,7 +100,7 @@ openssl rand -base64 32
 ```dotenv
 COCO_DB_PASSWORD=<생성한 긴 비밀번호>
 CLOUDFLARE_TUNNEL_TOKEN=<Cloudflare 터널 토큰>
-COCO_PUBLIC_API_BASE_URL=https://api.<보유한-도메인>
+COCO_PUBLIC_API_BASE_URL=https://api.cocorun.site
 COCO_API_IMAGE=ghcr.io/joooooonha/coco-api:latest
 COCO_MANAGEMENT_PORT=19090
 ```
@@ -115,7 +115,7 @@ docker compose --env-file .env.production -f compose.production.yaml pull
 docker compose --env-file .env.production -f compose.production.yaml up -d --wait
 docker compose --env-file .env.production -f compose.production.yaml ps
 curl --fail --silent --show-error http://127.0.0.1:19090/actuator/health
-curl --fail --silent --show-error https://api.<보유한-도메인>/api/v1/auth/guest -X POST
+curl --fail --silent --show-error https://api.cocorun.site/api/v1/auth/guest -X POST
 ```
 
 기대 상태:
@@ -126,7 +126,7 @@ curl --fail --silent --show-error https://api.<보유한-도메인>/api/v1/auth/
 - `api`는 `127.0.0.1:19090` 관리 포트만 가진다.
 - 로컬 Actuator 응답 상태가 `UP`이다.
 - 공개 HTTPS 게스트 인증이 성공한다.
-- `https://api.<보유한-도메인>/actuator/health`는 접근되지 않는다.
+- `https://api.cocorun.site/actuator/health`는 접근되지 않는다.
 
 ## 6. Cloudflare 보호 설정
 
@@ -162,7 +162,7 @@ ssh <mac-mini-user>@<mac-mini-tailscale-hostname>
 Xcode Target의 Release 빌드 설정 `COCO_API_BASE_URL`을 다음 값으로 변경한다.
 
 ```text
-https://api.<보유한-도메인>
+https://api.cocorun.site
 ```
 
 Debug의 `http://localhost:8080`은 MacBook 로컬 개발용으로 유지한다.
