@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: CoCoServer
+  datasource:
+    url: ${COCO_DB_URL:jdbc:postgresql://localhost:5432/coco}
+    username: ${COCO_DB_USER:coco}
+    password: ${COCO_DB_PASSWORD:coco-local}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

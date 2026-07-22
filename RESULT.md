@@ -40,3 +40,13 @@
 - Defined the Phase 2 guest-authentication, course-list, course-detail, and error response contracts in `SPEC.md`.
 - HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
 - Verification: `./gradlew compileJava` succeeded.
+
+## 2026-07-23 - Phase 2.2 PostgreSQL schema and seed data
+
+- Added a localhost-only PostgreSQL 17 Compose service with health check, persistent volume, and environment-variable configuration.
+- Added Flyway migrations for users, hashed auth tokens, courses, route points, elements, scraps, and reactions with ownership, uniqueness, range, and enum constraints.
+- Added the two iOS seed courses to PostgreSQL with six route points and three elements each.
+- Added JPA entities and detail-fetching repositories without exposing entities as API responses.
+- A real PostgreSQL test exposed both a multiple-bag fetch error and joined-collection duplication; internal collections now use sets and return explicitly sorted lists.
+- HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
+- Verification: `./gradlew test --rerun-tasks` succeeded with Testcontainers PostgreSQL 17; `docker compose config`, container health, Flyway startup, and direct seed counts were also verified.

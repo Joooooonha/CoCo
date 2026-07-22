@@ -20,3 +20,10 @@
 
 - Gradle Wrapper for reproducible builds
 - Java `--release` compatibility
+
+## 2026-07-23 - Phase 2.2
+
+### Learning keywords
+
+- Flyway versioned database migrations
+- JPA collection fetch joins and Cartesian products
