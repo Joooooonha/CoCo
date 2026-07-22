@@ -14,32 +14,23 @@ struct CourseSheetView: View {
 
             Divider()
 
-            if isExpanded {
-                List(store.courses) { course in
-                    CourseRow(
-                        course: course,
-                        isSelected: store.selectedCourseID == course.id,
-                        showsDetails: store.selectedCourseID == course.id
-                    ) {
-                        store.toggleSelection(course)
-                    }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-            } else if let selectedCourse = store.selectedCourse {
-                CourseRow(course: selectedCourse, isSelected: true, showsDetails: false) {
-                    store.toggleSelection(selectedCourse)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            } else {
-                ContentUnavailableView(
-                    "코스를 선택해 경로를 확인하세요",
-                    systemImage: "figure.run.circle",
-                    description: Text("목록을 펼치면 공유 코스 2개를 볼 수 있어요.")
+            switch store.loadState {
+            case .idle, .loading:
+                loadingContent
+            case .failed(let message):
+                stateContent(
+                    title: "코스를 불러올 수 없어요",
+                    description: message,
+                    symbolName: "wifi.exclamationmark"
                 )
-                .frame(maxHeight: .infinity)
+            case .empty:
+                stateContent(
+                    title: "등록된 코스가 없어요",
+                    description: "새 코스를 확인하려면 다시 불러와 주세요.",
+                    symbolName: "figure.run.circle"
+                )
+            case .loaded:
+                loadedContent
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
@@ -52,7 +43,7 @@ struct CourseSheetView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("러닝 코스 \(store.courses.count)개")
+                Text(courseCountTitle)
                     .font(.title3.weight(.bold))
 
                 if let selectedCourse = store.selectedCourse {
@@ -78,6 +69,130 @@ struct CourseSheetView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private var courseCountTitle: String {
+        switch store.loadState {
+        case .loaded:
+            "러닝 코스 \(store.courses.count)개"
+        default:
+            "러닝 코스"
+        }
+    }
+
+    @ViewBuilder
+    private var loadedContent: some View {
+        if isExpanded {
+            List(store.courses) { course in
+                CourseRow(
+                    course: course,
+                    isSelected: store.selectedCourseID == course.id,
+                    showsDetails: store.selectedCourseID == course.id
+                ) {
+                    store.toggleSelection(course)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        } else if let selectedCourse = store.selectedCourse {
+            CourseRow(course: selectedCourse, isSelected: true, showsDetails: false) {
+                store.toggleSelection(selectedCourse)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        } else {
+            ContentUnavailableView(
+                "코스를 선택해 경로를 확인하세요",
+                systemImage: "figure.run.circle",
+                description: Text("목록을 펼치면 공유 코스 \(store.courses.count)개를 볼 수 있어요.")
+            )
+            .frame(maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var loadingContent: some View {
+        if isExpanded {
+            VStack(spacing: 12) {
+                ProgressView()
+                    .controlSize(.regular)
+
+                Text("공유 코스를 불러오는 중")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement(children: .combine)
+        } else {
+            HStack(spacing: 12) {
+                ProgressView()
+
+                Text("공유 코스를 불러오는 중")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private func stateContent(
+        title: String,
+        description: String,
+        symbolName: String
+    ) -> some View {
+        if isExpanded {
+            ContentUnavailableView {
+                Label(title, systemImage: symbolName)
+            } description: {
+                Text(description)
+            } actions: {
+                Button("다시 시도", systemImage: "arrow.clockwise") {
+                    reloadCourses()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        } else {
+            HStack(spacing: 12) {
+                Image(systemName: symbolName)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 4)
+
+                Button {
+                    reloadCourses()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("코스 다시 불러오기")
+            }
+            .padding(.horizontal, 16)
+            .frame(maxHeight: .infinity)
+        }
+    }
+
+    private func reloadCourses() {
+        Task {
+            await store.loadCourses(force: true)
+        }
     }
 }
 

@@ -60,3 +60,28 @@
 - Disabled Spring Boot's unused generated development user so the custom bearer-token flow is the only application authentication path.
 - HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
 - Verification: `./gradlew test --rerun-tasks` succeeded; the Compose-backed server reported `UP`, issued a real guest token, and returned both seeded courses over HTTP.
+
+## 2026-07-23 - Phase 4.1 iOS server-backed course loading
+
+- Replaced the production `CourseStore` seed-data default with `URLSession` calls to guest authentication and the protected course-list API.
+- Added Keychain storage for the bearer token and automatic one-time guest-token renewal after a `401` response.
+- Added explicit idle, loading, loaded, empty, and failed states with inline retry actions in both sheet detents; startup failures do not present an alert or block map interaction.
+- Kept deterministic seed data only for SwiftUI previews.
+- Added a build-configured API base URL. Debug uses `localhost:8080` with an ATS exception limited to `localhost`; Release uses an HTTPS placeholder that must be replaced during Mac mini deployment.
+- Implemented this local Phase 4 slice before Phase 3 deployment to verify the server contract end to end. Mac mini, Tailscale, and HTTPS deployment remain the next infrastructure milestone.
+- Phase 5 guest-token storage was pulled forward because authenticated Phase 2 reads require it. Scrap, reaction, and personal-course features remain untouched.
+
+### HIG files loaded
+
+- Tier 1: `accessibility`, `branding`, `color`, `dark-mode`, `design-principles`, `icons`, `images`, `inclusion`, `layout`, `materials`, `motion`, `privacy`, `right-to-left`, `sf-symbols`, `typography`, `writing`.
+- Tier 2: `designing-for-ios`.
+- Tier 3: `maps`, `sheets`, `lists-and-tables`, `buttons`, `feedback`, `gestures`, `modality`, `loading`, `progress-indicators`, `managing-accounts`, `launching`, `labels`, `scroll-views`, `toolbars`, `voiceover`, `alerts`.
+- Related: `multitasking`, `action-sheets`, `popovers`, `panels`, `outline-views`, `collections`, `pull-down-buttons`, `pop-up-buttons`, `toggles`, `segmented-controls`, `playing-haptics`, `playing-audio`, `drag-and-drop`, `activity-views`, `in-app-purchase`, `onboarding`, `settings`, `sign-in-with-apple`, `text-views`, `page-controls`, `pointing-devices`, `sidebars`, `tab-bars`, `search-fields`, `focus-and-selection`, `charts`.
+
+### Verification
+
+- Signed Debug and unsigned Release simulator builds succeeded with Xcode 26.3 and the iOS 26.2 SDK.
+- The generated Debug plist contains the localhost API URL and localhost-only ATS exception; the generated Release plist contains `https://api.coco.invalid`.
+- On an iPhone 16e simulator, the app created a guest, stored the token, and displayed both PostgreSQL courses. Restarting the app left guest and token row counts unchanged, confirming Keychain reuse.
+- Visually checked the loaded state in light and dark appearances and the compact failed/retry state. The new states use semantic colors and Dynamic Type styles.
+- No iOS test target exists yet, so URL decoding and state transitions still need automated client tests in a later quality pass.

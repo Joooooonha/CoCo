@@ -8,9 +8,13 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var store = CourseStore()
+    @State private var store: CourseStore
     @State private var isCourseSheetPresented = true
     @State private var selectedDetent: PresentationDetent = .height(190)
+
+    init(store: CourseStore = CourseStore()) {
+        _store = State(initialValue: store)
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,9 +30,12 @@ struct ContentView: View {
                 .presentationBackgroundInteraction(.enabled(upThrough: .height(190)))
                 .interactiveDismissDisabled()
         }
+        .task {
+            await store.loadCourses()
+        }
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView(store: CourseStore(courses: SeedData.courses))
 }

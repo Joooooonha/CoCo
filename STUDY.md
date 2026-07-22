@@ -35,3 +35,10 @@
 - Stateless bearer authentication and Spring Security filter chains
 - One-way token hashing and stable API error contracts
 - Controller DTOs versus persistence entities
+
+## 2026-07-23 - Phase 4.1
+
+### Learning keywords
+
+- Swift Concurrency with `URLSession` and `Codable`
+- Keychain token storage and App Transport Security
