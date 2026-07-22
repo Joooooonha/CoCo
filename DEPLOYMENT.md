@@ -3,8 +3,11 @@
 CoCo의 일반 사용자 API는 Cloudflare Tunnel로 공개하고, Mac mini 관리와 CI/CD는 Tailscale 사설망으로 분리한다.
 
 ```text
+GitHub main -> GitHub Actions test -> GHCR ARM64 image
+                                      |
+                                      v
 iPhone -> Cloudflare HTTPS -> Cloudflare Tunnel -> cloudflared -> Spring:8080 -> PostgreSQL
-MacBook/GitHub Actions -> Tailscale -> Mac mini SSH
+MacBook -> Tailscale -> Mac mini SSH -> GHCR image pull
 Mac mini localhost:19090 -> Spring Actuator
 MacBook -> Tailscale -> Mac mini Cockpit:9090
 ```
@@ -74,9 +77,20 @@ sudo systemctl mask --now passim.service
 
 ## 4. Mac mini 환경 설정
 
+Mac mini는 전체 소스를 clone하거나 Gradle 빌드를 수행하지 않는다. MacBook에서 운영에 필요한 파일만 번들로 만들어 전송한다.
+
+MacBook:
+
 ```bash
-git clone https://github.com/Joooooonha/CoCo.git
-cd CoCo
+./scripts/create-deployment-bundle.sh
+scp build/deployment/coco-deployment.tar.gz joonha@coco-mac-mini:~/
+```
+
+Mac mini:
+
+```bash
+tar -xzf ~/coco-deployment.tar.gz -C ~
+cd ~/coco
 cp .env.production.example .env.production
 openssl rand -base64 32
 ```
@@ -87,6 +101,7 @@ openssl rand -base64 32
 COCO_DB_PASSWORD=<생성한 긴 비밀번호>
 CLOUDFLARE_TUNNEL_TOKEN=<Cloudflare 터널 토큰>
 COCO_PUBLIC_API_BASE_URL=https://api.<보유한-도메인>
+COCO_API_IMAGE=ghcr.io/joooooonha/coco-api:latest
 COCO_MANAGEMENT_PORT=19090
 ```
 
@@ -96,7 +111,8 @@ COCO_MANAGEMENT_PORT=19090
 
 ```bash
 docker compose --env-file .env.production -f compose.production.yaml config
-docker compose --env-file .env.production -f compose.production.yaml up -d --build --wait
+docker compose --env-file .env.production -f compose.production.yaml pull
+docker compose --env-file .env.production -f compose.production.yaml up -d --wait
 docker compose --env-file .env.production -f compose.production.yaml ps
 curl --fail --silent --show-error http://127.0.0.1:19090/actuator/health
 curl --fail --silent --show-error https://api.<보유한-도메인>/api/v1/auth/guest -X POST
@@ -105,6 +121,7 @@ curl --fail --silent --show-error https://api.<보유한-도메인>/api/v1/auth/
 기대 상태:
 
 - `postgres`, `api`, `cloudflared`가 실행 중이다.
+- `api`는 Mac mini에서 빌드하지 않고 GHCR ARM64 이미지를 사용한다.
 - `postgres`는 호스트 포트가 없다.
 - `api`는 `127.0.0.1:19090` 관리 포트만 가진다.
 - 로컬 Actuator 응답 상태가 `UP`이다.
@@ -152,15 +169,20 @@ Debug의 `http://localhost:8080`은 MacBook 로컬 개발용으로 유지한다.
 
 ## 9. 업데이트
 
-현재 수동 배포 단계:
+`main`에 서버 변경이 push되면 `.github/workflows/server-ci.yml`이 테스트 후 다음 이미지를 발행한다.
+
+- `ghcr.io/joooooonha/coco-api:latest`
+- `ghcr.io/joooooonha/coco-api:sha-<전체-커밋-SHA>`
+
+현재 Mac mini 반영 단계는 수동 pull이다.
 
 ```bash
-git pull --ff-only
-docker compose --env-file .env.production -f compose.production.yaml up -d --build --wait
+docker compose --env-file .env.production -f compose.production.yaml pull api
+docker compose --env-file .env.production -f compose.production.yaml up -d --wait api
 curl --fail --silent --show-error http://127.0.0.1:19090/actuator/health
 ```
 
-CI/CD 단계에서는 Mac mini 빌드를 제거하고 GHCR의 커밋 SHA 이미지를 `pull`하도록 전환한다.
+롤백은 `.env.production`의 `COCO_API_IMAGE`를 정상 동작했던 `sha-<전체-커밋-SHA>` 태그로 바꾸고 같은 pull/up 명령을 실행한다. 다음 단계에서 GitHub Actions가 임시 Tailscale 노드로 접속해 이 반영과 헬스 체크를 자동화한다.
 
 ## 10. 백업과 복구
 

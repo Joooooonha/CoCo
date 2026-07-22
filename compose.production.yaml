@@ -29,9 +29,7 @@ services:
     logging: *default-logging
 
   api:
-    build:
-      context: ./server
-    image: coco-api:local
+    image: ${COCO_API_IMAGE:-ghcr.io/joooooonha/coco-api:latest}
     environment:
       COCO_DB_URL: jdbc:postgresql://postgres:5432/${COCO_DB_NAME:-coco}
       COCO_DB_USER: ${COCO_DB_USER:-coco}
