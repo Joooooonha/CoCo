@@ -70,3 +70,13 @@
 - firewalld interface zones for Tailscale-only management
 - OpenSSH drop-in precedence and public-key-only authentication
 - Service-listener inventory and attack-surface reduction
+
+## 2026-07-23 - Phase 3.4
+
+### Learning keywords
+
+- GitHub-hosted native ARM64 runners
+- GHCR mutable latest tags versus immutable commit-SHA tags
+- OCI provenance and SBOM attestations
+- Build-on-server versus image-pull deployment
+- Source-free deployment bundles

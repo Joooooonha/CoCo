@@ -22,6 +22,6 @@ install -m 0644 \
     "${ROOT_DIR}/ops/fedora/sshd/00-coco-hardening.conf" \
     "${STAGING_DIR}/coco/ops/fedora/sshd/00-coco-hardening.conf"
 
-tar -C "${STAGING_DIR}" -czf "${ARCHIVE_PATH}" coco
+COPYFILE_DISABLE=1 tar --no-xattrs -C "${STAGING_DIR}" -czf "${ARCHIVE_PATH}" coco
 
 echo "Deployment bundle created: ${ARCHIVE_PATH}"

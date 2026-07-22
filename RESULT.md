@@ -141,3 +141,22 @@
 - Password-only and root SSH attempts were rejected.
 - Cockpit returned HTTP 200 through Tailscale while Wi-Fi access to ports 22 and 9090 was blocked.
 - Port 27500 was blocked through the management zone before Passim was stopped and masked.
+
+## 2026-07-23 - Phase 3.4 GitHub Actions and GHCR image delivery
+
+- Added a server workflow that runs Gradle integration tests for pull requests and main-branch pushes on GitHub-hosted Linux ARM64 runners.
+- Added a main-only publish job that packages the Spring Boot JAR in a non-root ARM64 image and pushes both `latest` and immutable `sha-<commit>` tags to GHCR.
+- Upgraded the Docker Actions to their Node 24 runtimes after the first successful run exposed Node 20 deprecation warnings.
+- Changed production Compose to pull `ghcr.io/joooooonha/coco-api` instead of building server source on the Mac mini.
+- Kept local image builds available through `compose.production.build.yaml`.
+- Added a deployment-bundle script that includes only Compose, environment examples, backup/restore scripts, and host configuration while excluding application source and macOS extended attributes.
+- HIG files loaded: none; this CI and server-delivery step does not change iOS behavior or presentation.
+
+### Verification
+
+- `./gradlew test --no-daemon --rerun-tasks` succeeded locally with PostgreSQL Testcontainers.
+- A local Linux ARM64 image build succeeded and resolved to user `coco` with the JAR entrypoint.
+- GitHub Actions run `29944082265` passed without annotations: server tests completed in 1m31s and the cached image publish completed in 25s.
+- Anonymous GHCR inspection found the Linux ARM64 image plus provenance/SBOM attestation and matching `latest` and commit-SHA digests.
+- The Fedora Asahi Mac mini anonymously pulled the commit-SHA image and confirmed `architecture=arm64,user=coco`.
+- The Mac mini `~/coco` directory contains only five deployment files and no Spring source.
