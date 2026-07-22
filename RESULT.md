@@ -203,3 +203,18 @@
 - GitHub Actions run `29952359896` passed server tests, published the ARM64 image, joined Tailscale as an ephemeral `tag:ci` node, and deployed through the restricted SSH command.
 - Confirmed Mac mini container `coco-api-1` is healthy and runs revision `0ce7891613f6287425a9bf19404aead8a6dac0c3` after the workflow.
 - Confirmed the public API remains reachable through Cloudflare and returns the expected authenticated response boundary.
+
+## 2026-07-23 - Phase 5.1 Scrap, reaction, and personal course APIs
+
+- Added idempotent scrap save/remove and reaction select/remove endpoints keyed to the authenticated user; duplicate requests do not create duplicate rows or errors.
+- Added `GET /api/v1/me/scraps` (newest scrap first) and `GET /api/v1/me/courses` (newest course first).
+- Course list and detail responses now return real `scrapCount`, `reactionCounts`, `isScrapped`, and `myReactions` values computed with grouped aggregate queries instead of hardcoded zeros; no per-course N+1 queries.
+- Reaction type is validated as a path enum; unknown values return the stable `400 INVALID_REQUEST` response, and scrap or reaction requests against missing courses return `404 COURSE_NOT_FOUND`.
+- Reused the existing `course_scraps` and `course_reactions` tables from migration V1; no schema change was needed.
+- HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
+
+### Verification
+
+- `./gradlew test --no-daemon --rerun-tasks` succeeded with Testcontainers PostgreSQL 17.
+- New integration tests cover scrap idempotency, per-user scrap isolation, reaction counts across two guests, reaction idempotency, invalid reaction enum rejection, missing-course errors, and the empty personal course list.
+- The pre-existing deprecation compile note in `ApiIntegrationTest` was confirmed to exist before this change.

@@ -20,9 +20,15 @@ public record CourseResponse(
         int scrapCount,
         ReactionCountsResponse reactionCounts,
         boolean isScrapped,
-        Set<String> myReactions
+        Set<ReactionType> myReactions
 ) {
-    static CourseResponse from(CourseEntity entity) {
+    static CourseResponse from(
+            CourseEntity entity,
+            int scrapCount,
+            ReactionCountsResponse reactionCounts,
+            boolean isScrapped,
+            Set<ReactionType> myReactions
+    ) {
         List<RoutePointResponse> routePoints = entity.getRoutePoints().stream()
                 .map(RoutePointResponse::from)
                 .toList();
@@ -43,10 +49,10 @@ public record CourseResponse(
                 entity.getRouteSource(),
                 routePoints,
                 elements,
-                0,
-                ReactionCountsResponse.empty(),
-                false,
-                Set.of()
+                scrapCount,
+                reactionCounts,
+                isScrapped,
+                myReactions
         );
     }
 }

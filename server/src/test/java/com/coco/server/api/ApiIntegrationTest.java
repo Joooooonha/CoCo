@@ -1,7 +1,9 @@
 package com.coco.server.api;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -83,6 +85,133 @@ class ApiIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    @Test
+    void scrapLifecycleIsIdempotentAndPerUser() throws Exception {
+        String firstUser = issueGuestAuthorization();
+        String secondUser = issueGuestAuthorization();
+        String courseId = "10000000-0000-0000-0000-000000000001";
+
+        mockMvc.perform(put("/api/v1/courses/" + courseId + "/scrap").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/v1/courses/" + courseId + "/scrap").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scrapCount").value(1))
+                .andExpect(jsonPath("$.isScrapped").value(true));
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, secondUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scrapCount").value(1))
+                .andExpect(jsonPath("$.isScrapped").value(false));
+
+        mockMvc.perform(get("/api/v1/me/scraps").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(courseId))
+                .andExpect(jsonPath("$.items[0].isScrapped").value(true));
+
+        mockMvc.perform(delete("/api/v1/courses/" + courseId + "/scrap").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/courses/" + courseId + "/scrap").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scrapCount").value(0))
+                .andExpect(jsonPath("$.isScrapped").value(false));
+
+        mockMvc.perform(get("/api/v1/me/scraps").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void reactionLifecycleIsIdempotentAndPerUser() throws Exception {
+        String firstUser = issueGuestAuthorization();
+        String secondUser = issueGuestAuthorization();
+        String courseId = "10000000-0000-0000-0000-000000000002";
+
+        mockMvc.perform(put("/api/v1/courses/" + courseId + "/reactions/LIKE").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/v1/courses/" + courseId + "/reactions/LIKE").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/v1/courses/" + courseId + "/reactions/SCENIC").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/v1/courses/" + courseId + "/reactions/LIKE").header(HttpHeaders.AUTHORIZATION, secondUser))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reactionCounts.like").value(2))
+                .andExpect(jsonPath("$.reactionCounts.hard").value(0))
+                .andExpect(jsonPath("$.reactionCounts.scenic").value(1))
+                .andExpect(jsonPath("$.myReactions.length()").value(2));
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, secondUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reactionCounts.like").value(2))
+                .andExpect(jsonPath("$.myReactions.length()").value(1))
+                .andExpect(jsonPath("$.myReactions[0]").value("LIKE"));
+
+        mockMvc.perform(delete("/api/v1/courses/" + courseId + "/reactions/LIKE").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/courses/" + courseId + "/reactions/LIKE").header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, firstUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reactionCounts.like").value(1))
+                .andExpect(jsonPath("$.reactionCounts.scenic").value(1))
+                .andExpect(jsonPath("$.myReactions.length()").value(1))
+                .andExpect(jsonPath("$.myReactions[0]").value("SCENIC"));
+    }
+
+    @Test
+    void invalidReactionTypeIsRejected() throws Exception {
+        String authorization = issueGuestAuthorization();
+
+        mockMvc.perform(put("/api/v1/courses/10000000-0000-0000-0000-000000000001/reactions/AMAZING")
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void scrapAndReactionOnMissingCourseReturnNotFound() throws Exception {
+        String authorization = issueGuestAuthorization();
+        String missingCourse = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+
+        mockMvc.perform(put("/api/v1/courses/" + missingCourse + "/scrap")
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+
+        mockMvc.perform(put("/api/v1/courses/" + missingCourse + "/reactions/LIKE")
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    @Test
+    void newGuestHasNoOwnedCourses() throws Exception {
+        String authorization = issueGuestAuthorization();
+
+        mockMvc.perform(get("/api/v1/me/courses").header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    private String issueGuestAuthorization() throws Exception {
+        String guestBody = mockMvc.perform(post("/api/v1/auth/guest"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return "Bearer " + objectMapper.readTree(guestBody).get("token").asText();
     }
 
     @Test
