@@ -13,3 +13,10 @@
 
 - Observation with `@Observable` and `@Bindable`
 - SwiftUI MapKit content and `PresentationDetent`
+
+## 2026-07-22 - Phase 2.1
+
+### Learning keywords
+
+- Gradle Wrapper for reproducible builds
+- Java `--release` compatibility

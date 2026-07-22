@@ -292,6 +292,64 @@ CourseReaction
 
 오류 응답은 상태 코드, 안정적인 오류 코드, 사용자에게 직접 노출하지 않을 기술 메시지를 구분한다. API 계약은 서버 구현 전에 요청·응답 예시로 확정한다.
 
+### 7.1 Phase 2 API 계약
+
+게스트 발급 응답:
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "displayName": "게스트 러너 A1B2",
+    "accountType": "GUEST"
+  },
+  "token": "base64url-token",
+  "expiresAt": "2026-08-21T12:00:00Z"
+}
+```
+
+코스 목록 응답은 이후 페이지 정보 추가를 위해 배열을 `items`로 감싼다. Phase 2에서는 경로와 요소까지 포함한 코스 전체 표현을 반환한다.
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "ownerId": "uuid",
+      "ownerName": "노을러너",
+      "name": "한강 노을 라인",
+      "summary": "여의도 한강공원을 따라 노을과 강바람을 즐기는 코스",
+      "difficulty": "MODERATE",
+      "locationLabel": "서울 영등포구",
+      "distanceMeters": 5200,
+      "estimatedDurationSeconds": 2520,
+      "routeSource": "PLANNED_MAPKIT",
+      "routePoints": [],
+      "elements": [],
+      "scrapCount": 0,
+      "reactionCounts": { "like": 0, "hard": 0, "scenic": 0 },
+      "isScrapped": false,
+      "myReactions": []
+    }
+  ]
+}
+```
+
+대표 오류 응답:
+
+```json
+{
+  "status": 401,
+  "code": "AUTH_TOKEN_INVALID",
+  "message": "인증이 필요합니다.",
+  "timestamp": "2026-07-22T12:00:00Z"
+}
+```
+
+- `token` 원문은 발급 응답에서 한 번만 전달하고 서버에는 SHA-256 해시만 저장한다.
+- `GET /api/v1/courses`와 상세 조회는 게스트 Bearer 토큰이 필요하다.
+- JSON 열거형과 필드 이름은 5장의 iOS 모델 계약을 그대로 사용한다.
+
 ---
 
 ## 8. 개발 계획

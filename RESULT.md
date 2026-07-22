@@ -31,3 +31,12 @@
 - Ran the app on an iPhone 16e simulator and visually checked the default collapsed state, selected route state, expanded course list, and element detail overlay.
 - Checked the element detail state in both light and dark appearances.
 - No UI test target exists yet; interaction states were verified with temporary initial state injection that was removed before the final build.
+
+## 2026-07-22 - Phase 2.1 Server scaffold and API contract
+
+- Added a Spring Boot 4.1.0 server project under `server/` with the Gradle 9.5.1 Wrapper.
+- Added Web MVC, Validation, Data JPA, Security, Actuator, Flyway, and PostgreSQL dependencies.
+- Fixed Java source, target, and compiler release compatibility at Java 21 while allowing Gradle to run on the installed JDK 22.
+- Defined the Phase 2 guest-authentication, course-list, course-detail, and error response contracts in `SPEC.md`.
+- HIG files loaded: none; this server-only step does not change user interface behavior or presentation.
+- Verification: `./gradlew compileJava` succeeded.
