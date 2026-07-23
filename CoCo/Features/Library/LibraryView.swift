@@ -1,12 +1,14 @@
 import SwiftUI
 
 struct LibraryView: View {
+    var onOpenCourse: ((Course) -> Void)?
     @State private var store: LibraryStore
     @State private var isEditingName = false
     @State private var nameDraft = ""
 
-    init(store: LibraryStore = LibraryStore()) {
+    init(store: LibraryStore = LibraryStore(), onOpenCourse: ((Course) -> Void)? = nil) {
         _store = State(initialValue: store)
+        self.onOpenCourse = onOpenCourse
     }
 
     var body: some View {
@@ -105,8 +107,14 @@ struct LibraryView: View {
                 .background(Color(uiColor: .systemGroupedBackground))
         } else {
             List(store.courses) { course in
-                LibraryCourseRow(course: course)
-                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                Button {
+                    onOpenCourse?(course)
+                } label: {
+                    LibraryCourseRow(course: course)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("탐색 지도에서 이 코스를 엽니다")
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             }
             .listStyle(.insetGrouped)
             .refreshable {
@@ -181,10 +189,19 @@ private struct LibraryCourseRow: View {
                 }
             }
 
-            Text("\(course.ownerName) · \(course.locationLabel)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text("\(course.ownerName) · \(course.locationLabel)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 4)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
 
             Text(String(format: "%.1f km · 약 %d분", course.distanceKilometers, course.estimatedMinutes))
                 .font(.caption)

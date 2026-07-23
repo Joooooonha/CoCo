@@ -34,7 +34,11 @@ struct ContentView: View {
             }
 
             Tab("보관함", systemImage: "bookmark.fill", value: MainTab.library) {
-                LibraryView()
+                LibraryView { course in
+                    store.selectedElement = nil
+                    store.selectedCourseID = course.id
+                    selectedTab = .explore
+                }
             }
         }
         .task {
