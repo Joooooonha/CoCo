@@ -241,9 +241,9 @@ struct CourseSheetView: View {
     }
 
     private var loadedContent: some View {
-        // The list stays scrollable at every sheet height; selected courses
-        // sort first so they remain visible in low sheet positions.
-        List(orderedCourses) { course in
+        // The list keeps its order so scroll position stays meaningful;
+        // a selected course expands in place below its own card.
+        List(store.courses) { course in
             CourseRow(
                 store: store,
                 course: course,
@@ -263,14 +263,6 @@ struct CourseSheetView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-    }
-
-    private var orderedCourses: [Course] {
-        guard let selectedCourseID = store.selectedCourseID else { return store.courses }
-        return store.courses.sorted { first, second in
-            (first.id == selectedCourseID ? 0 : 1, first.name)
-                < (second.id == selectedCourseID ? 0 : 1, second.name)
-        }
     }
 
     @ViewBuilder
