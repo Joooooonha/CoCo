@@ -4,6 +4,7 @@ import SwiftUI
 struct MapCanvasView: View {
     @Bindable var store: CourseStore
     var bottomInset: CGFloat = 190
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var position: MapCameraPosition = .region(.seoulOverview)
     @State private var editingElement: EditingElementDraft?
     @State private var elementPendingDeletion: CourseElement?
@@ -91,7 +92,10 @@ struct MapCanvasView: View {
         .padding(.bottom, bottomInset + 20)
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .bottomLeading) {
-            if store.selectedCourse != nil, store.selectedElement == nil, !store.isAddingElement {
+            // The legend is redundant with the pins' VoiceOver labels and would
+            // cover most of the map at accessibility text sizes.
+            if store.selectedCourse != nil, store.selectedElement == nil, !store.isAddingElement,
+               !dynamicTypeSize.isAccessibilitySize {
                 ElementLegend()
                     .padding(.leading, 12)
                     .padding(.bottom, bottomInset + 12)
@@ -281,52 +285,67 @@ private struct ElementDetailOverlay: View {
                     .accessibilityLabel("요소 상세 닫기")
                 }
 
-                Text(distanceLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Scroll only when large text makes the details exceed the card cap.
+                ViewThatFits(in: .vertical) {
+                    detailContent
 
-                Text(element.title)
-                    .font(.title3.weight(.bold))
-
-                Text(element.description)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if canManage {
-                    HStack(spacing: 8) {
-                        Button {
-                            onEdit()
-                        } label: {
-                            Label("수정", systemImage: "pencil")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 28)
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        .accessibilityHint("요소 내용을 수정합니다")
-
-                        Button(role: .destructive) {
-                            onDelete()
-                        } label: {
-                            Label("삭제", systemImage: "trash")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 28)
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        .accessibilityHint("요소를 삭제합니다")
+                    ScrollView {
+                        detailContent
                     }
-                    .disabled(isBusy)
                 }
             }
             .padding(16)
             .frame(maxWidth: 340, alignment: .leading)
+            .frame(maxHeight: 460)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal, 20)
             .padding(.bottom, 180)
             .shadow(radius: 14, y: 6)
         }
+    }
+
+    private var detailContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(distanceLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(element.title)
+                .font(.title3.weight(.bold))
+
+            Text(element.description)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if canManage {
+                HStack(spacing: 8) {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Label("수정", systemImage: "pencil")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 28)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .accessibilityHint("요소 내용을 수정합니다")
+
+                    Button(role: .destructive) {
+                        onDelete()
+                    } label: {
+                        Label("삭제", systemImage: "trash")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 28)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .accessibilityHint("요소를 삭제합니다")
+                }
+                .disabled(isBusy)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var distanceLabel: String {

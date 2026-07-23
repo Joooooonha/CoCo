@@ -352,3 +352,20 @@
 
 - `xcodebuild test` on an iPhone 16e simulator: 15 of 15 test cases passed.
 - CourseStore/LibraryStore state-machine tests remain future work because `CourseAPIClient` needs protocol-based injection first.
+
+## 2026-07-23 - Phase 7.2 Dynamic Type accessibility pass
+
+- Audited every main state at the largest accessibility text size (AX5) on an iPhone 16e simulator with a scripted walkthrough. The iOS 26 runtime no longer ships an iPhone SE simulator, so the 16e is the smallest supported device.
+- Found and fixed four clipping/overflow defects:
+  - The map legend covered most of the map at accessibility sizes; it now hides for accessibility type sizes since the same information is exposed through each pin's VoiceOver label.
+  - The collapsed explore panel used fixed heights (190/252 pt) that clipped the selected-course row; the height now scales with `dynamicTypeSize` tiers and is capped at 55% of screen height.
+  - The element detail card overflowed the screen and clipped the description; content now falls back to an internal `ScrollView` via `ViewThatFits` under a 460 pt card cap.
+  - The register step-1 control row (되돌리기/순환 코스/지우기) overflowed one line; `ViewThatFits` now drops it to a vertical stack when needed.
+- The step-2 form, library list, and expanded course list already wrapped correctly and needed no changes.
+- HIG basis: Tier 1 `accessibility`/`typography`/`layout` — text must remain legible and unclipped at all Dynamic Type sizes; decorative duplicates may be hidden when redundant accessible labels exist.
+
+### Verification
+
+- AX5 screenshots after the fixes show the legend hidden, the larger collapsed panel showing the full course row header, the element card scrolling internally, and the planner buttons stacked vertically with 다음 fully visible.
+- A default-size screenshot confirmed the standard layout is unchanged, and all 15 unit tests still pass.
+- VoiceOver labels/hints existed already on interactive controls; a device VoiceOver sweep remains a manual follow-up.

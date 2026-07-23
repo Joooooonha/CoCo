@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var store: CourseStore
     @State private var selectedTab: MainTab = .explore
     @State private var sheetStage: ExploreSheetStage = .collapsed
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(store: CourseStore = CourseStore()) {
         _store = State(initialValue: store)
@@ -42,17 +43,35 @@ struct ContentView: View {
         }
     }
 
-    private var collapsedPanelHeight: CGFloat {
-        store.selectedCourse != nil ? 252 : 190
+    /// Scales the collapsed panel with the text size so larger Dynamic Type
+    /// content is not clipped by a fixed height.
+    private var panelTypeScale: CGFloat {
+        switch dynamicTypeSize {
+        case .xSmall, .small, .medium, .large: 1.0
+        case .xLarge: 1.08
+        case .xxLarge: 1.16
+        case .xxxLarge: 1.25
+        case .accessibility1: 1.5
+        case .accessibility2: 1.7
+        case .accessibility3: 1.9
+        case .accessibility4: 2.05
+        default: 2.2
+        }
+    }
+
+    private func collapsedPanelHeight(fullHeight: CGFloat) -> CGFloat {
+        let base: CGFloat = store.selectedCourse != nil ? 252 : 190
+        return min(base * panelTypeScale, fullHeight * 0.55)
     }
 
     private var exploreTab: some View {
         NavigationStack {
             GeometryReader { proxy in
+                let panelHeight = collapsedPanelHeight(fullHeight: proxy.size.height)
                 ZStack(alignment: .bottom) {
-                    MapCanvasView(store: store, bottomInset: collapsedPanelHeight)
+                    MapCanvasView(store: store, bottomInset: panelHeight)
 
-                    coursePanel(fullHeight: proxy.size.height)
+                    coursePanel(fullHeight: proxy.size.height, collapsedHeight: panelHeight)
                 }
             }
             .navigationTitle("CoCo")
@@ -61,10 +80,10 @@ struct ContentView: View {
         }
     }
 
-    private func coursePanel(fullHeight: CGFloat) -> some View {
+    private func coursePanel(fullHeight: CGFloat, collapsedHeight: CGFloat) -> some View {
         CourseSheetView(store: store, stage: $sheetStage)
             .frame(maxWidth: .infinity)
-            .frame(height: sheetStage == .expanded ? fullHeight : collapsedPanelHeight, alignment: .top)
+            .frame(height: sheetStage == .expanded ? fullHeight : collapsedHeight, alignment: .top)
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
             .shadow(color: .black.opacity(0.15), radius: 10, y: -3)
             .highPriorityGesture(

@@ -129,3 +129,10 @@
 
 - Swift Testing `#expect` / typed `#expect(throws:)` vs XCTest
 - objectVersion 77 synchronized-group test targets and `TEST_HOST`
+
+## 2026-07-23 - Phase 7.2
+
+### Learning keywords
+
+- `ViewThatFits` as a Dynamic Type overflow fallback
+- `dynamicTypeSize.isAccessibilitySize` for hiding redundant decorations

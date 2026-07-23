@@ -216,33 +216,15 @@ struct RegisterView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                Button {
-                    planner.removeLastWaypoint()
-                } label: {
-                    Label("되돌리기", systemImage: "arrow.uturn.backward")
-                        .frame(minHeight: 28)
+            // Falls back to a vertical stack when large text overflows one row.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    planningButtons
                 }
-                .buttonStyle(.bordered)
-                .disabled(planner.waypoints.isEmpty)
 
-                Button {
-                    planner.closeLoopToStart()
-                } label: {
-                    Label("순환 코스", systemImage: "arrow.triangle.2.circlepath")
-                        .frame(minHeight: 28)
+                VStack(alignment: .leading, spacing: 8) {
+                    planningButtons
                 }
-                .buttonStyle(.bordered)
-                .disabled(planner.waypoints.count < 2 || planner.isClosedLoop || !planner.canAddWaypoint)
-
-                Button(role: .destructive) {
-                    planner.clearRoute()
-                } label: {
-                    Label("지우기", systemImage: "trash")
-                        .frame(minHeight: 28)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!planner.hasPlanningContent)
             }
             .font(.subheadline)
 
@@ -261,6 +243,36 @@ struct RegisterView: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial)
+    }
+
+    @ViewBuilder
+    private var planningButtons: some View {
+        Button {
+            planner.removeLastWaypoint()
+        } label: {
+            Label("되돌리기", systemImage: "arrow.uturn.backward")
+                .frame(minHeight: 28)
+        }
+        .buttonStyle(.bordered)
+        .disabled(planner.waypoints.isEmpty)
+
+        Button {
+            planner.closeLoopToStart()
+        } label: {
+            Label("순환 코스", systemImage: "arrow.triangle.2.circlepath")
+                .frame(minHeight: 28)
+        }
+        .buttonStyle(.bordered)
+        .disabled(planner.waypoints.count < 2 || planner.isClosedLoop || !planner.canAddWaypoint)
+
+        Button(role: .destructive) {
+            planner.clearRoute()
+        } label: {
+            Label("지우기", systemImage: "trash")
+                .frame(minHeight: 28)
+        }
+        .buttonStyle(.bordered)
+        .disabled(!planner.hasPlanningContent)
     }
 
     private func waypointTitle(at index: Int) -> String {
