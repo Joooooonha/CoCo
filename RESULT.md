@@ -337,3 +337,18 @@
 - Shipped the files to the Mac mini and took the first verified manual backup: the custom-format dump lists all 8 tables.
 - The one sudo-requiring step — installing and enabling the timer — is documented in `DEPLOYMENT.md` and deferred by user decision; it must run before TestFlight testers create real data or the next Flyway migration.
 - External off-site copy remains manual (`scp` to the MacBook) until an external storage location is chosen.
+
+## 2026-07-23 - Phase 7.1 iOS unit test target
+
+- Added a `CoCoTests` unit test bundle target by editing the objectVersion-77 project directly: a synchronized `CoCoTests` root group, host-app `TEST_HOST`/`BUNDLE_LOADER` settings, and a dependency on the app target. A hand-written shared scheme crashed `xcodebuild`, so the target relies on Xcode's auto-generated scheme, which picks up the test bundle via `TestTargetID`.
+- Wrote 15 Swift Testing cases over the pure logic that previously had no coverage:
+  - `GPXParserTests`: Naver-style extensions (distance/duration/name), plain GPX without metadata, invalid XML, single-point rejection, out-of-range coordinate skipping.
+  - `CourseModelTests`: server-contract JSON decoding (enums, reactions, scrap state), idempotent scrap/reaction mutations with count clamping, element upsert ordering and removal.
+  - `RoutePlannerStoreTests`: waypoint cap and loop closing, imported-route metadata use, derived distance/duration fallbacks (1.25 m/s), nearest-vertex snapping with cumulative distance, clear-route origin reset, submit validation gating.
+- `GPXParseError` gained `Equatable` for typed `#expect(throws:)` assertions.
+- HIG files loaded: none; this test-infrastructure step does not change user interface behavior.
+
+### Verification
+
+- `xcodebuild test` on an iPhone 16e simulator: 15 of 15 test cases passed.
+- CourseStore/LibraryStore state-machine tests remain future work because `CourseAPIClient` needs protocol-based injection first.

@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		79000BA83010EA7C0019D8E1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 79000B393010EA7B0019D8E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 79000B403010EA7B0019D8E1;
+			remoteInfo = CoCo;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		79000B413010EA7C0019D8E1 /* CoCo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoCo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		79000BA13010EA7C0019D8E1 /* CoCoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoCoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -29,10 +40,22 @@
 			path = CoCo;
 			sourceTree = "<group>";
 		};
+		79000BA23010EA7C0019D8E1 /* CoCoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CoCoTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		79000B3E3010EA7B0019D8E1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79000BA53010EA7C0019D8E1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				79000B433010EA7C0019D8E1 /* CoCo */,
+				79000BA23010EA7C0019D8E1 /* CoCoTests */,
 				79000B423010EA7C0019D8E1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				79000B413010EA7C0019D8E1 /* CoCo.app */,
+				79000BA13010EA7C0019D8E1 /* CoCoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,6 +108,29 @@
 			productReference = 79000B413010EA7C0019D8E1 /* CoCo.app */;
 			productType = "com.apple.product-type.application";
 		};
+		79000BA33010EA7C0019D8E1 /* CoCoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 79000BA93010EA7C0019D8E1 /* Build configuration list for PBXNativeTarget "CoCoTests" */;
+			buildPhases = (
+				79000BA43010EA7C0019D8E1 /* Sources */,
+				79000BA53010EA7C0019D8E1 /* Frameworks */,
+				79000BA63010EA7C0019D8E1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				79000BA73010EA7C0019D8E1 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				79000BA23010EA7C0019D8E1 /* CoCoTests */,
+			);
+			name = CoCoTests;
+			packageProductDependencies = (
+			);
+			productName = CoCoTests;
+			productReference = 79000BA13010EA7C0019D8E1 /* CoCoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -95,6 +143,10 @@
 				TargetAttributes = {
 					79000B403010EA7B0019D8E1 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					79000BA33010EA7C0019D8E1 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 79000B403010EA7B0019D8E1;
 					};
 				};
 			};
@@ -113,12 +165,20 @@
 			projectRoot = "";
 			targets = (
 				79000B403010EA7B0019D8E1 /* CoCo */,
+				79000BA33010EA7C0019D8E1 /* CoCoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		79000B3F3010EA7B0019D8E1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79000BA63010EA7C0019D8E1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +195,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		79000BA43010EA7C0019D8E1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		79000BA73010EA7C0019D8E1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 79000B403010EA7B0019D8E1 /* CoCo */;
+			targetProxy = 79000BA83010EA7C0019D8E1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		79000B4A3010EA7D0019D8E1 /* Debug */ = {
@@ -340,6 +415,54 @@
 			};
 			name = Release;
 		};
+		79000BAA3010EA7C0019D8E1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Bed.CoCoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CoCo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CoCo";
+			};
+			name = Debug;
+		};
+		79000BAB3010EA7C0019D8E1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Bed.CoCoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CoCo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CoCo";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -357,6 +480,15 @@
 			buildConfigurations = (
 				79000B4D3010EA7D0019D8E1 /* Debug */,
 				79000B4E3010EA7D0019D8E1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		79000BA93010EA7C0019D8E1 /* Build configuration list for PBXNativeTarget "CoCoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				79000BAA3010EA7C0019D8E1 /* Debug */,
+				79000BAB3010EA7C0019D8E1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

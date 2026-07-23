@@ -8,7 +8,7 @@ struct GPXRoute {
     let durationSeconds: Int?
 }
 
-enum GPXParseError: LocalizedError {
+enum GPXParseError: LocalizedError, Equatable {
     case invalidDocument
     case notEnoughTrackPoints
 

@@ -122,3 +122,10 @@
 
 - `fileImporter` + security-scoped resource access for Files-app imports
 - Foundation `XMLParser` delegate parsing of GPX `trkpt` tracks
+
+## 2026-07-23 - Phase 7.1
+
+### Learning keywords
+
+- Swift Testing `#expect` / typed `#expect(throws:)` vs XCTest
+- objectVersion 77 synchronized-group test targets and `TEST_HOST`
