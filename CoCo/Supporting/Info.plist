@@ -4,6 +4,10 @@
 <dict>
 	<key>COCO_API_BASE_URL</key>
 	<string>$(COCO_API_BASE_URL)</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>
