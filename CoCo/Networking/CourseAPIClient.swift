@@ -34,7 +34,44 @@ struct CourseAPIClient {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(payload)
+            let course: Course = try await send(request)
+            CurrentUserID.value = course.ownerId
+            return course
+        }
+    }
+
+    func addElement(courseID: UUID, _ payload: CourseCreatePayload.ElementPayload) async throws -> CourseElement {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/elements"))
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(payload)
             return try await send(request)
+        }
+    }
+
+    func updateElement(
+        courseID: UUID,
+        elementID: UUID,
+        _ payload: CourseCreatePayload.ElementPayload
+    ) async throws -> CourseElement {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/elements/\(elementID.uuidString)"))
+            request.httpMethod = "PATCH"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(payload)
+            return try await send(request)
+        }
+    }
+
+    func deleteElement(courseID: UUID, elementID: UUID) async throws {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/elements/\(elementID.uuidString)"))
+            request.httpMethod = "DELETE"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await sendExpectingSuccess(request)
         }
     }
 
@@ -62,6 +99,9 @@ struct CourseAPIClient {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
             let response: CourseListResponse = try await send(request)
+            if path == "api/v1/me/courses", let ownedCourse = response.items.first {
+                CurrentUserID.value = ownedCourse.ownerId
+            }
             return response.items
         }
     }
@@ -93,6 +133,7 @@ struct CourseAPIClient {
 
         let response: GuestAuthResponse = try await send(request)
         try tokenStore.save(response.token)
+        CurrentUserID.value = response.user.id
         return response.token
     }
 
@@ -159,6 +200,11 @@ struct CourseCreatePayload: Encodable, Sendable {
 }
 
 private struct GuestAuthResponse: Decodable {
+    struct GuestUser: Decodable {
+        let id: UUID
+    }
+
+    let user: GuestUser
     let token: String
 }
 
@@ -178,6 +224,10 @@ private enum APIClientError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .server(code: "ELEMENT_MINIMUM_REQUIRED"):
+            "코스에는 요소가 1개 이상 필요해요."
+        case .server(code: "COURSE_OWNER_ONLY"):
+            "코스 작성자만 요소를 관리할 수 있어요."
         case .invalidResponse, .server:
             "서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요."
         case .unauthorized:

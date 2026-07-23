@@ -105,18 +105,33 @@ struct CourseSheetView: View {
                     store: store,
                     course: course,
                     isSelected: store.selectedCourseID == course.id,
-                    showsDetails: store.selectedCourseID == course.id
-                ) {
-                    store.toggleSelection(course)
-                }
+                    showsDetails: store.selectedCourseID == course.id,
+                    action: {
+                        store.toggleSelection(course)
+                    },
+                    onAddElement: {
+                        store.isAddingElement = true
+                        stage = .collapsed
+                    }
+                )
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         } else if let selectedCourse = store.selectedCourse {
-            CourseRow(store: store, course: selectedCourse, isSelected: true, showsDetails: false) {
-                store.toggleSelection(selectedCourse)
-            }
+            CourseRow(
+                store: store,
+                course: selectedCourse,
+                isSelected: true,
+                showsDetails: false,
+                action: {
+                    store.toggleSelection(selectedCourse)
+                },
+                onAddElement: {
+                    store.isAddingElement = true
+                    stage = .collapsed
+                }
+            )
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         } else {
@@ -220,6 +235,7 @@ private struct CourseRow: View {
     let isSelected: Bool
     let showsDetails: Bool
     let action: () -> Void
+    let onAddElement: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -284,7 +300,7 @@ private struct CourseRow: View {
             .accessibilityHint(isSelected ? "다시 탭하면 선택을 해제합니다" : "지도에 코스 경로를 표시합니다")
 
             if isSelected {
-                CourseActionBar(store: store, course: course)
+                CourseActionBar(store: store, course: course, onAddElement: onAddElement)
             }
         }
     }
@@ -301,6 +317,7 @@ private struct CourseRow: View {
 private struct CourseActionBar: View {
     let store: CourseStore
     let course: Course
+    let onAddElement: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -310,6 +327,10 @@ private struct CourseActionBar: View {
 
                     ForEach(ReactionType.allCases, id: \.self) { reaction in
                         reactionButton(reaction)
+                    }
+
+                    if store.isSelectedCourseMine {
+                        addElementButton
                     }
                 }
             }
@@ -321,6 +342,19 @@ private struct CourseActionBar: View {
                     .foregroundStyle(.red)
             }
         }
+    }
+
+    private var addElementButton: some View {
+        Button(action: onAddElement) {
+            Label("요소 추가", systemImage: "plus")
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 28)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .tint(.green)
+        .disabled(store.isAddingElement || store.isSavingElement)
+        .accessibilityHint("지도를 탭해 내 코스에 요소를 추가합니다")
     }
 
     private var scrapButton: some View {

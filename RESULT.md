@@ -280,3 +280,24 @@
 - The local database showed the created course with 26 route points and the element at 536 m; after submission the app switched to the explore tab with the new course selected, its route, element pin, and legend visible, and the shared list showing three courses.
 - The verification course was deleted from the local development database afterward; production was not used for this UI verification.
 - S7, S8 (server-side), and S9 scenario behavior is now implemented; on-device manual verification and iOS automated tests remain for the Phase 7 quality pass.
+
+## 2026-07-23 - Phase 6.3 Owner element management in explore
+
+- Added owner-only element management for registered courses in the explore tab, completing the Phase 6 scope.
+- The app now stores the guest user id (UserDefaults; the bearer token stays in the Keychain) from guest issuance, course creation, and my-courses responses, so ownership can be decided client-side; the server continues to enforce it authoritatively.
+- The selected-course action bar shows a green 요소 추가 button only for owned courses; it enters an add mode with a dismissible top banner, collapses the sheet, and snaps the next map tap to the nearest route vertex with its cumulative distance before opening the shared element editor sheet.
+- The element detail overlay gains 수정 and 삭제 buttons for owned courses. Edit reuses the shared editor; delete asks for confirmation in a confirmation dialog and handles the server's last-element `409` with the friendly message from the stable error code.
+- Extracted `ElementDraftEditorView` from the registration flow into `Features/Shared` so registration drafts and post-registration editing use one editor.
+- Element mutations update the loaded course in place (insert sorted by distance, replace, or remove) without a full list reload; API error codes `ELEMENT_MINIMUM_REQUIRED` and `COURSE_OWNER_ONLY` map to user-facing Korean messages.
+
+### HIG files loaded
+
+- Same set as Phase 6.2 this session, plus `alerts` guidance applied through the native confirmation dialog for destructive deletion.
+
+### Verification
+
+- Debug builds succeeded with Xcode 26.3 and the iOS 26.2 SDK; zero TEMP markers remain.
+- A temporary scripted walkthrough (removed afterward) against the local Spring server verified on an iPhone 16e simulator: the owned course showed the 요소 추가 action, the add-mode banner rendered over the map, the element detail overlay showed 수정/삭제, a PATCH renamed the element to `수정된 전망`, a POST added a second element, and a DELETE removed it.
+- PostgreSQL confirmed the final state: exactly one element titled `수정된 전망` at 400 m. The verification course was then deleted and the local server stopped.
+- Seed courses owned by other users continue to show no management controls; the server-side S10 rejection remains covered by integration tests.
+- Real map-tap snapping still needs an on-device pass in Phase 7, since simulator tap injection is unavailable in this environment.

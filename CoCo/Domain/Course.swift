@@ -34,7 +34,7 @@ struct Course: Codable, Hashable, Identifiable, Sendable {
     let estimatedDurationSeconds: Int
     let routeSource: RouteSource
     let routePoints: [RoutePoint]
-    let elements: [CourseElement]
+    var elements: [CourseElement]
     var scrapCount: Int
     var reactionCounts: ReactionCounts
     var isScrapped: Bool
@@ -52,6 +52,21 @@ struct Course: Codable, Hashable, Identifiable, Sendable {
         guard isScrapped != newValue else { return }
         isScrapped = newValue
         scrapCount = max(0, scrapCount + (newValue ? 1 : -1))
+    }
+
+    mutating func upsertElement(_ element: CourseElement) {
+        if let index = elements.firstIndex(where: { $0.id == element.id }) {
+            elements[index] = element
+        } else {
+            elements.append(element)
+        }
+        elements.sort {
+            ($0.distanceFromStartMeters, $0.id.uuidString) < ($1.distanceFromStartMeters, $1.id.uuidString)
+        }
+    }
+
+    mutating func removeElement(id elementID: UUID) {
+        elements.removeAll { $0.id == elementID }
     }
 
     mutating func setReaction(_ type: ReactionType, isOn: Bool) {

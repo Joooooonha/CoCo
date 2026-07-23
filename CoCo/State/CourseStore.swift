@@ -18,6 +18,8 @@ final class CourseStore {
     private(set) var actionErrorMessage: String?
     var selectedCourseID: Course.ID?
     var selectedElement: CourseElement?
+    var isAddingElement = false
+    private(set) var isSavingElement = false
     @ObservationIgnored private let apiClient: CourseAPIClient
 
     init(
@@ -37,9 +39,15 @@ final class CourseStore {
         courses.first { $0.id == selectedCourseID }
     }
 
+    var isSelectedCourseMine: Bool {
+        guard let selectedCourse, let currentUserID = CurrentUserID.value else { return false }
+        return selectedCourse.ownerId == currentUserID
+    }
+
     func toggleSelection(_ course: Course) {
         selectedCourseID = selectedCourseID == course.id ? nil : course.id
         selectedElement = nil
+        isAddingElement = false
     }
 
     func showDetails(for element: CourseElement) {
@@ -74,6 +82,68 @@ final class CourseStore {
         } catch {
             loadState = .failed(message: message(for: error))
         }
+    }
+
+    /// Saves a new or edited element on the owned course. Returns true on success.
+    func saveElement(_ draft: ElementDraft, isNew: Bool, for courseID: Course.ID) async -> Bool {
+        guard !isSavingElement else { return false }
+
+        isSavingElement = true
+        actionErrorMessage = nil
+        defer { isSavingElement = false }
+
+        let payload = CourseCreatePayload.ElementPayload(
+            category: draft.category,
+            latitude: draft.latitude,
+            longitude: draft.longitude,
+            distanceFromStartMeters: draft.distanceFromStartMeters,
+            title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+            description: draft.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        do {
+            let savedElement: CourseElement
+            if isNew {
+                savedElement = try await apiClient.addElement(courseID: courseID, payload)
+            } else {
+                savedElement = try await apiClient.updateElement(courseID: courseID, elementID: draft.id, payload)
+            }
+            updateCourse(id: courseID) { $0.upsertElement(savedElement) }
+            if selectedElement?.id == savedElement.id {
+                selectedElement = savedElement
+            }
+            isAddingElement = false
+            return true
+        } catch {
+            actionErrorMessage = elementErrorMessage(for: error, fallback: "요소를 저장하지 못했어요. 다시 시도해 주세요.")
+            return false
+        }
+    }
+
+    func deleteElement(_ element: CourseElement) async {
+        guard !isSavingElement else { return }
+
+        isSavingElement = true
+        actionErrorMessage = nil
+        defer { isSavingElement = false }
+
+        do {
+            try await apiClient.deleteElement(courseID: element.courseId, elementID: element.id)
+            updateCourse(id: element.courseId) { $0.removeElement(id: element.id) }
+            if selectedElement?.id == element.id {
+                selectedElement = nil
+            }
+        } catch {
+            actionErrorMessage = elementErrorMessage(for: error, fallback: "요소를 삭제하지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    private func elementErrorMessage(for error: Error, fallback: String) -> String {
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription {
+            return description
+        }
+        return fallback
     }
 
     func isReactionPending(_ type: ReactionType, for courseID: Course.ID) -> Bool {

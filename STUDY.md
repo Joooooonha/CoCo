@@ -108,3 +108,10 @@
 
 - `MapReader`/`proxy.convert` for map-tap coordinate capture
 - Snapping tapped points to a polyline with `MKMapPoint` distances
+
+## 2026-07-23 - Phase 6.3
+
+### Learning keywords
+
+- Client-side ownership hints vs. server-side authorization (UserDefaults id + 403 enforcement)
+- `confirmationDialog` for destructive actions with stable error-code mapping

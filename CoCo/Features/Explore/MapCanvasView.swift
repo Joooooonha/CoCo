@@ -5,8 +5,35 @@ struct MapCanvasView: View {
     @Bindable var store: CourseStore
     var bottomInset: CGFloat = 190
     @State private var position: MapCameraPosition = .region(.seoulOverview)
+    @State private var editingElement: EditingElementDraft?
+    @State private var elementPendingDeletion: CourseElement?
 
     var body: some View {
+        MapReader { proxy in
+            mapContent
+                .onTapGesture { screenPoint in
+                    guard store.isAddingElement,
+                          store.isSelectedCourseMine,
+                          let course = store.selectedCourse,
+                          let tapped = proxy.convert(screenPoint, from: .local),
+                          let snapped = course.nearestRoutePoint(to: tapped) else { return }
+                    editingElement = EditingElementDraft(
+                        draft: ElementDraft(
+                            id: UUID(),
+                            category: .view,
+                            latitude: snapped.coordinate.latitude,
+                            longitude: snapped.coordinate.longitude,
+                            distanceFromStartMeters: snapped.distanceFromStartMeters,
+                            title: "",
+                            description: ""
+                        ),
+                        isNew: true
+                    )
+                }
+        }
+    }
+
+    private var mapContent: some View {
         Map(position: $position) {
             if let course = store.selectedCourse {
                 MapPolyline(coordinates: course.mapCoordinates)
@@ -64,18 +91,66 @@ struct MapCanvasView: View {
         .padding(.bottom, bottomInset + 20)
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .bottomLeading) {
-            if store.selectedCourse != nil, store.selectedElement == nil {
+            if store.selectedCourse != nil, store.selectedElement == nil, !store.isAddingElement {
                 ElementLegend()
                     .padding(.leading, 12)
                     .padding(.bottom, bottomInset + 12)
             }
         }
+        .overlay(alignment: .top) {
+            if store.isAddingElement {
+                addElementBanner
+            }
+        }
         .overlay {
             if let element = store.selectedElement {
-                ElementDetailOverlay(element: element) {
-                    store.dismissElementDetails()
+                ElementDetailOverlay(
+                    element: element,
+                    canManage: store.isSelectedCourseMine,
+                    isBusy: store.isSavingElement,
+                    onEdit: {
+                        editingElement = EditingElementDraft(draft: ElementDraft(element: element), isNew: false)
+                    },
+                    onDelete: {
+                        elementPendingDeletion = element
+                    },
+                    onDismiss: {
+                        store.dismissElementDetails()
+                    }
+                )
+            }
+        }
+        .sheet(item: $editingElement) { editing in
+            ElementDraftEditorView(draft: editing.draft) { draft in
+                Task {
+                    _ = await store.saveElement(draft, isNew: editing.isNew, for: store.selectedCourseID ?? draft.id)
+                }
+            } onDelete: { draft in
+                if let element = store.selectedCourse?.elements.first(where: { $0.id == draft.id }) {
+                    elementPendingDeletion = element
                 }
             }
+        }
+        .confirmationDialog(
+            "이 요소를 삭제할까요?",
+            isPresented: Binding(
+                get: { elementPendingDeletion != nil },
+                set: { if !$0 { elementPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("요소 삭제", role: .destructive) {
+                guard let element = elementPendingDeletion else { return }
+                elementPendingDeletion = nil
+                Task {
+                    await store.deleteElement(element)
+                }
+            }
+            Button("취소", role: .cancel) {
+                elementPendingDeletion = nil
+            }
+        } message: {
+            Text("삭제한 요소는 되돌릴 수 없어요.")
         }
         .onChange(of: store.selectedCourseID) {
             updatePosition()
@@ -83,6 +158,32 @@ struct MapCanvasView: View {
         .onAppear {
             updatePosition()
         }
+    }
+
+    private var addElementBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "hand.tap")
+                .foregroundStyle(.green)
+                .accessibilityHidden(true)
+
+            Text("경로 근처를 탭해 요소 위치를 선택하세요")
+                .font(.subheadline.weight(.semibold))
+
+            Spacer(minLength: 8)
+
+            Button("취소") {
+                store.isAddingElement = false
+            }
+            .font(.subheadline.weight(.semibold))
+            .frame(minWidth: 44, minHeight: 44)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .shadow(radius: 6, y: 2)
+        .accessibilityElement(children: .contain)
     }
 
     private func updatePosition() {
@@ -142,8 +243,19 @@ private struct CompactLegendLabelStyle: LabelStyle {
     }
 }
 
+private struct EditingElementDraft: Identifiable {
+    let draft: ElementDraft
+    let isNew: Bool
+
+    var id: UUID { draft.id }
+}
+
 private struct ElementDetailOverlay: View {
     let element: CourseElement
+    let canManage: Bool
+    let isBusy: Bool
+    let onEdit: () -> Void
+    let onDelete: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
@@ -180,6 +292,33 @@ private struct ElementDetailOverlay: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if canManage {
+                    HStack(spacing: 8) {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("수정", systemImage: "pencil")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 28)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .accessibilityHint("요소 내용을 수정합니다")
+
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("삭제", systemImage: "trash")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 28)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .accessibilityHint("요소를 삭제합니다")
+                    }
+                    .disabled(isBusy)
+                }
             }
             .padding(16)
             .frame(maxWidth: 340, alignment: .leading)
@@ -232,6 +371,36 @@ private extension Course {
         guard let first = mapCoordinates.first, let last = mapCoordinates.last else { return false }
         return abs(first.latitude - last.latitude) < 0.000_01
             && abs(first.longitude - last.longitude) < 0.000_01
+    }
+
+    /// Snaps a tapped coordinate to the nearest route vertex and returns
+    /// its cumulative distance from the course start.
+    func nearestRoutePoint(
+        to coordinate: CLLocationCoordinate2D
+    ) -> (coordinate: CLLocationCoordinate2D, distanceFromStartMeters: Int)? {
+        let coordinates = mapCoordinates
+        guard !coordinates.isEmpty else { return nil }
+
+        let target = MKMapPoint(coordinate)
+        var bestIndex = 0
+        var bestDistance = Double.greatestFiniteMagnitude
+        var cumulativeMeters: [Double] = []
+        cumulativeMeters.reserveCapacity(coordinates.count)
+        var runningDistance = 0.0
+
+        for (index, routeCoordinate) in coordinates.enumerated() {
+            if index > 0 {
+                runningDistance += MKMapPoint(coordinates[index - 1]).distance(to: MKMapPoint(routeCoordinate))
+            }
+            cumulativeMeters.append(runningDistance)
+
+            let distance = MKMapPoint(routeCoordinate).distance(to: target)
+            if distance < bestDistance {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return (coordinates[bestIndex], Int(cumulativeMeters[bestIndex].rounded()))
     }
 }
 
