@@ -326,6 +326,34 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void ownerCanDeleteCourseButOthersCannot() throws Exception {
+        String authorization = issueGuestAuthorization();
+
+        mockMvc.perform(delete("/api/v1/courses/10000000-0000-0000-0000-000000000001")
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COURSE_OWNER_ONLY"));
+
+        String createdBody = mockMvc.perform(post("/api/v1/courses")
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validCourseJson("삭제될 코스")))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String courseId = objectMapper.readTree(createdBody).get("id").asText();
+
+        mockMvc.perform(delete("/api/v1/courses/" + courseId)
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/courses/" + courseId)
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void importedGpxCourseIsAccepted() throws Exception {
         String authorization = issueGuestAuthorization();
         UUID courseId = null;

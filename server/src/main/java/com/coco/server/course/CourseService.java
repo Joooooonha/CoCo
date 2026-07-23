@@ -146,6 +146,16 @@ public class CourseService {
     }
 
     @Transactional
+    public void deleteCourse(UUID userId, UUID courseId) {
+        CourseEntity course = courseRepository.findByIdWithDetails(courseId)
+                .orElseThrow(CourseService::courseNotFound);
+        if (!course.getOwner().getId().equals(userId)) {
+            throw new ForbiddenOperationException("COURSE_OWNER_ONLY", "코스 작성자만 삭제할 수 있습니다.");
+        }
+        courseRepository.delete(course);
+    }
+
+    @Transactional
     public CourseElementResponse addElement(UUID userId, UUID courseId, ElementCreateRequest request) {
         CourseEntity course = courseRepository.findByIdWithDetails(courseId)
                 .orElseThrow(CourseService::courseNotFound);

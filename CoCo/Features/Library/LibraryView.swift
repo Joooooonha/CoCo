@@ -5,6 +5,7 @@ struct LibraryView: View {
     @State private var store: LibraryStore
     @State private var isEditingName = false
     @State private var nameDraft = ""
+    @State private var coursePendingDeletion: Course?
 
     init(store: LibraryStore = LibraryStore(), onOpenCourse: ((Course) -> Void)? = nil) {
         _store = State(initialValue: store)
@@ -115,10 +116,53 @@ struct LibraryView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("탐색 지도에서 이 코스를 엽니다")
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .swipeActions(edge: .trailing) {
+                    if store.segment == .myCourses {
+                        Button(role: .destructive) {
+                            coursePendingDeletion = course
+                        } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
+                    }
+                }
             }
             .listStyle(.insetGrouped)
             .refreshable {
                 await store.load(force: true)
+            }
+            .confirmationDialog(
+                "이 코스를 삭제할까요?",
+                isPresented: Binding(
+                    get: { coursePendingDeletion != nil },
+                    set: { if !$0 { coursePendingDeletion = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("코스 삭제", role: .destructive) {
+                    guard let course = coursePendingDeletion else { return }
+                    coursePendingDeletion = nil
+                    Task {
+                        await store.deleteMyCourse(course)
+                    }
+                }
+                Button("취소", role: .cancel) {
+                    coursePendingDeletion = nil
+                }
+            } message: {
+                Text("경로와 요소, 다른 사용자의 스크랩·반응까지 함께 삭제되고 되돌릴 수 없어요.")
+            }
+            .alert(
+                "코스를 삭제하지 못했어요",
+                isPresented: Binding(
+                    get: { store.deleteErrorMessage != nil },
+                    set: { if !$0 { store.clearDeleteError() } }
+                )
+            ) {
+                Button("확인", role: .cancel) {
+                    store.clearDeleteError()
+                }
+            } message: {
+                Text(store.deleteErrorMessage ?? "")
             }
         }
     }

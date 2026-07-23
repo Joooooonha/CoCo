@@ -417,3 +417,10 @@
 - The sheet gains a search field with a clear button and an empty-filter state ("지도를 움직이거나 검색어를 바꿔 보세요").
 - Four new unit tests cover viewport filtering, selected-course pinning, text search fields, and the combined filter (19 total tests pass).
 - Also this round: explore now silently refreshes on tab entry so display-name changes reach the shared list, the element editor sheet gained the photo-slot placeholder, and the file-sharing Info.plist keys were fixed by declaring them in the plist file directly (the `INFOPLIST_KEY_UIFileSharingEnabled` build setting was silently ignored).
+
+## 2026-07-23 - Simulator QA round 5: library navigation and course deletion
+
+- Library cards (both scraps and my courses) were inert; tapping now switches to the explore tab with that course selected on the map, where owner element tools live. Rows gained a chevron affordance.
+- User-requested: course deletion. Added owner-only `DELETE /api/v1/courses/{courseId}` (404 unknown, 403 non-owner, cascade removes route points, elements, scraps, reactions) with an integration test covering the non-owner rejection and delete-then-404 flow.
+- iOS: 내 코스 rows support swipe-to-delete with a destructive confirmation dialog that spells out the cascade, local list removal on success, and an error alert on failure. `SPEC.md` gains F14 and the DELETE row in the API table.
+- The floating iOS 26 tab bar position was questioned; confirmed it is the system Liquid Glass design (not adjustable via public API) and the user chose to keep the default over the legacy compatibility mode.

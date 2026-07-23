@@ -111,6 +111,29 @@ final class LibraryStore {
         profileErrorMessage = nil
     }
 
+    private(set) var deleteErrorMessage: String?
+    @ObservationIgnored private var isDeleting = false
+
+    func deleteMyCourse(_ course: Course) async {
+        guard !isDeleting else { return }
+
+        isDeleting = true
+        defer { isDeleting = false }
+        deleteErrorMessage = nil
+
+        do {
+            try await apiClient.deleteCourse(courseID: course.id)
+            myCourses.removeAll { $0.id == course.id }
+            scraps.removeAll { $0.id == course.id }
+        } catch {
+            deleteErrorMessage = "코스를 삭제하지 못했어요. 다시 시도해 주세요."
+        }
+    }
+
+    func clearDeleteError() {
+        deleteErrorMessage = nil
+    }
+
     private func message(for error: Error) -> String {
         if let urlError = error as? URLError {
             switch urlError.code {

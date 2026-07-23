@@ -40,6 +40,15 @@ struct CourseAPIClient {
         }
     }
 
+    func deleteCourse(courseID: UUID) async throws {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)"))
+            request.httpMethod = "DELETE"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await sendExpectingSuccess(request)
+        }
+    }
+
     func addElement(courseID: UUID, _ payload: CourseCreatePayload.ElementPayload) async throws -> CourseElement {
         try await withAuthorization { token in
             var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/elements"))

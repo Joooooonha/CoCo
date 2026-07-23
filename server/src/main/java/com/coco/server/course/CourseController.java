@@ -47,6 +47,15 @@ public class CourseController {
         return courseService.create(user.id(), request);
     }
 
+    @DeleteMapping("/{courseId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCourse(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID courseId
+    ) {
+        courseService.deleteCourse(user.id(), courseId);
+    }
+
     @PostMapping("/{courseId}/elements")
     @ResponseStatus(HttpStatus.CREATED)
     public CourseElementResponse addElement(
