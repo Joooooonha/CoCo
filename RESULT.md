@@ -309,3 +309,9 @@
 - The bar shows the submission error, or the validation hint listing missing requirements while the button is disabled.
 - HIG basis: forms should keep the primary action readily accessible; progression stays disabled until required data exists (`entering-data`).
 - Verification: Debug build succeeded; a temporary scripted run (removed afterward) captured step 2 on an iPhone 16e simulator with the pinned disabled 코스 등록 button and the 요소-필요 hint visible without scrolling.
+
+## 2026-07-23 - Phase 6.5 Register map camera fix
+
+- Device feedback: the register map appeared to only zoom in. Cause: every route recalculation re-fitted the camera to the route, undoing the user's own zoom-out after each waypoint tap.
+- The camera now auto-fits only on the first successful calculation per planning session (flag resets when the route is cleared); later recalculations never override user pan/zoom.
+- Verification: Debug build succeeded. Physical pinch verification on device remains with the user; simulator pinch injection needs `xcode-select` pointing at Xcode.app first.

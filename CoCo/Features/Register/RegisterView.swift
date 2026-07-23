@@ -6,6 +6,7 @@ struct RegisterView: View {
 
     @State private var planner = RoutePlannerStore()
     @State private var showsDetails = false
+    @State private var hasAutoFittedCamera = false
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.537, longitude: 126.976),
@@ -30,9 +31,17 @@ struct RegisterView: View {
                 }
         }
         .onChange(of: planner.routeState) { _, newState in
-            guard let route = newState.plannedRoute else { return }
+            // Fit the camera only on the first successful calculation so later
+            // recalculations never fight the user's own pan and zoom.
+            guard !hasAutoFittedCamera, let route = newState.plannedRoute else { return }
+            hasAutoFittedCamera = true
             withAnimation {
                 position = .region(fittedRegion(for: route.coordinates))
+            }
+        }
+        .onChange(of: planner.waypoints.isEmpty) { _, isEmpty in
+            if isEmpty {
+                hasAutoFittedCamera = false
             }
         }
     }
