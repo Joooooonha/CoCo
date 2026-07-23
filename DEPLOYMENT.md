@@ -220,14 +220,47 @@ repository variable `COCO_CD_ENABLED`는 현재 `true`다. GitHub Actions가 만
 
 ## 10. 백업과 복구
 
-현재는 재생성 가능한 시드 코스만 있으므로 정기 백업을 CD의 선행 조건으로 두지 않는다. 실제 사용자가 코스, 스크랩 또는 반응을 저장하기 전이나 다음 Flyway 스키마 변경 전에는 정기 백업과 외부 저장장치 복사를 활성화한다.
+코스 등록 기능이 열려 실제 사용자 데이터가 저장되므로 정기 백업을 운영 기본값으로 활성화한다.
+
+### 정기 백업
+
+`ops/fedora/systemd/`의 systemd 유닛이 매일 04:30 KST(10분 지연 허용, 놓친 실행은 부팅 후 보충)에 `backup-postgres.sh`를 실행한다. 스크립트는 성공한 백업 이후 `COCO_BACKUP_RETAIN`(기본 14) 개수를 넘는 오래된 덤프를 삭제한다.
+
+Mac mini에 배포 번들을 풀어 둔 상태에서 한 번만 설치한다.
+
+```bash
+sudo install -o root -g root -m 0644 \
+  ~/coco/ops/fedora/systemd/coco-backup.service \
+  ~/coco/ops/fedora/systemd/coco-backup.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now coco-backup.timer
+```
+
+상태와 이력 확인:
+
+```bash
+systemctl list-timers coco-backup.timer --no-pager
+journalctl -u coco-backup.service --no-pager | tail -20
+ls -la ~/coco/backups/
+```
+
+### 수동 백업과 복구
 
 ```bash
 ./scripts/backup-postgres.sh
 ./scripts/restore-postgres.sh backups/coco-YYYYMMDDTHHMMSSZ.dump --confirm
 ```
 
-백업은 `backups/`에 생성되며 Git에서 제외된다. 정기 백업은 Mac mini와 다른 저장 장치에도 복사한다. 복구 스크립트는 API를 중지하고 DB를 교체한 뒤 API가 다시 healthy가 될 때까지 기다린다.
+백업은 `backups/`에 생성되며 Git에서 제외된다. 복구 스크립트는 API를 중지하고 DB를 교체한 뒤 API가 다시 healthy가 될 때까지 기다린다.
+
+### 외부 복사
+
+Mac mini에는 현재 외장 저장장치가 없다. 디스크 장애에 대비한 외부 복사는 별도 저장 위치(외장 SSD 또는 개발 MacBook으로의 주기적 `scp`)를 결정한 뒤 활성화한다. 그 전까지 중요한 변경 전에는 수동으로 최신 덤프를 MacBook으로 복사한다.
+
+```bash
+scp joonha@coco-mac-mini:~/coco/backups/coco-*.dump ~/coco-backups/
+```
 
 ## 11. 진단
 

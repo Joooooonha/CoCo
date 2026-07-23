@@ -29,3 +29,12 @@ if [[ ! -s "${backup_file}" ]]; then
 fi
 
 echo "Backup created: ${backup_file}"
+
+# Keep only the most recent backups so scheduled runs cannot fill the disk.
+retain_count="${COCO_BACKUP_RETAIN:-14}"
+if [[ "${retain_count}" -gt 0 ]]; then
+    while IFS= read -r old_backup; do
+        rm -f -- "${old_backup}"
+        echo "Pruned old backup: ${old_backup}"
+    done < <(ls -1t "${BACKUP_DIR}"/coco-*.dump 2>/dev/null | tail -n +"$((retain_count + 1))")
+fi

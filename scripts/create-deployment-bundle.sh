@@ -12,7 +12,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${OUTPUT_DIR}" "${STAGING_DIR}/coco/scripts" "${STAGING_DIR}/coco/ops/fedora/sshd"
+mkdir -p "${OUTPUT_DIR}" "${STAGING_DIR}/coco/scripts" "${STAGING_DIR}/coco/ops/fedora/sshd" "${STAGING_DIR}/coco/ops/fedora/systemd"
 
 install -m 0644 "${ROOT_DIR}/compose.production.yaml" "${STAGING_DIR}/coco/compose.production.yaml"
 install -m 0644 "${ROOT_DIR}/.env.production.example" "${STAGING_DIR}/coco/.env.production.example"
@@ -23,6 +23,12 @@ install -m 0755 "${ROOT_DIR}/scripts/ci-deploy-entrypoint.sh" "${STAGING_DIR}/co
 install -m 0644 \
     "${ROOT_DIR}/ops/fedora/sshd/00-coco-hardening.conf" \
     "${STAGING_DIR}/coco/ops/fedora/sshd/00-coco-hardening.conf"
+install -m 0644 \
+    "${ROOT_DIR}/ops/fedora/systemd/coco-backup.service" \
+    "${STAGING_DIR}/coco/ops/fedora/systemd/coco-backup.service"
+install -m 0644 \
+    "${ROOT_DIR}/ops/fedora/systemd/coco-backup.timer" \
+    "${STAGING_DIR}/coco/ops/fedora/systemd/coco-backup.timer"
 
 COPYFILE_DISABLE=1 tar --no-xattrs -C "${STAGING_DIR}" -czf "${ARCHIVE_PATH}" coco
 

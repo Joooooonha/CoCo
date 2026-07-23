@@ -330,3 +330,10 @@
 - Debug build succeeded; zero TEMP markers remain.
 - A temporary scripted run imported the user's actual Naver Map 남산 GPX (324 trkpt) from the app container: step 1 showed the imported route with `4.5 km · 약 87분 · GPX 경로` (matching Naver's 4.5 km / 1시간 26분), and submission created the course with `route_source=IMPORTED_GPX`, distance 4455 m, duration 5194 s, and all 324 route points in PostgreSQL.
 - The verification course and container file were removed and the local server stopped. Real file-picker selection needs an on-device pass.
+
+## 2026-07-23 - Backup automation prepared (timer activation deferred)
+
+- Added backup retention (`COCO_BACKUP_RETAIN`, default 14) to `backup-postgres.sh`, version-controlled `coco-backup.service`/`coco-backup.timer` systemd units (daily 04:30 KST, persistent), and bundle-script inclusion.
+- Shipped the files to the Mac mini and took the first verified manual backup: the custom-format dump lists all 8 tables.
+- The one sudo-requiring step — installing and enabling the timer — is documented in `DEPLOYMENT.md` and deferred by user decision; it must run before TestFlight testers create real data or the next Flyway migration.
+- External off-site copy remains manual (`scp` to the MacBook) until an external storage location is chosen.
