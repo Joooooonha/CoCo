@@ -23,6 +23,9 @@ final class LibraryStore {
     private(set) var scraps: [Course] = []
     private(set) var myCourses: [Course] = []
     private(set) var loadState: CourseLoadState = .idle
+    private(set) var profileName: String? = CurrentUserName.value
+    private(set) var profileErrorMessage: String?
+    @ObservationIgnored private var isFetching = false
     @ObservationIgnored private let apiClient: CourseAPIClient
 
     init(
@@ -46,28 +49,66 @@ final class LibraryStore {
     }
 
     func load(force: Bool = false) async {
-        guard loadState != .loading else { return }
+        guard !isFetching else { return }
         guard force || loadState == .idle || loadState == .empty else { return }
 
-        loadState = .loading
+        isFetching = true
+        defer { isFetching = false }
+
+        // Refreshes keep showing current content instead of flashing a spinner.
+        let hadContent = loadState == .loaded
+        if !hadContent {
+            loadState = .loading
+        }
 
         do {
             async let scrapsRequest = apiClient.fetchMyScraps()
             async let myCoursesRequest = apiClient.fetchMyCourses()
             let (loadedScraps, loadedMyCourses) = try await (scrapsRequest, myCoursesRequest)
             guard !Task.isCancelled else {
-                loadState = .idle
+                if !hadContent {
+                    loadState = .idle
+                }
                 return
             }
 
             scraps = loadedScraps
             myCourses = loadedMyCourses
+            profileName = CurrentUserName.value
             loadState = .loaded
         } catch is CancellationError {
-            loadState = .idle
+            if !hadContent {
+                loadState = .idle
+            }
         } catch {
-            loadState = .failed(message: message(for: error))
+            // A failed silent refresh keeps the last shown content.
+            if !hadContent {
+                loadState = .failed(message: message(for: error))
+            }
         }
+    }
+
+    func updateDisplayName(_ displayName: String) async -> Bool {
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, trimmedName.count <= 20 else {
+            profileErrorMessage = "이름은 1~20자로 입력해 주세요."
+            return false
+        }
+
+        profileErrorMessage = nil
+        do {
+            let user = try await apiClient.updateDisplayName(trimmedName)
+            profileName = user.displayName
+            await load(force: true)
+            return true
+        } catch {
+            profileErrorMessage = "이름을 저장하지 못했어요. 다시 시도해 주세요."
+            return false
+        }
+    }
+
+    func clearProfileError() {
+        profileErrorMessage = nil
     }
 
     private func message(for error: Error) -> String {

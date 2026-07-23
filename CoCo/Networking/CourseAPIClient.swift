@@ -75,6 +75,20 @@ struct CourseAPIClient {
         }
     }
 
+    func updateDisplayName(_ displayName: String) async throws -> User {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/me"))
+            request.httpMethod = "PATCH"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(["displayName": displayName])
+            let user: User = try await send(request)
+            CurrentUserID.value = user.id
+            CurrentUserName.value = user.displayName
+            return user
+        }
+    }
+
     func updateScrap(courseID: UUID, isScrapped: Bool) async throws {
         try await withAuthorization { token in
             var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/scrap"))
@@ -134,6 +148,7 @@ struct CourseAPIClient {
         let response: GuestAuthResponse = try await send(request)
         try tokenStore.save(response.token)
         CurrentUserID.value = response.user.id
+        CurrentUserName.value = response.user.displayName
         return response.token
     }
 
@@ -202,6 +217,7 @@ struct CourseCreatePayload: Encodable, Sendable {
 private struct GuestAuthResponse: Decodable {
     struct GuestUser: Decodable {
         let id: UUID
+        let displayName: String
     }
 
     let user: GuestUser

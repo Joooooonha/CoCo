@@ -369,3 +369,15 @@
 - AX5 screenshots after the fixes show the legend hidden, the larger collapsed panel showing the full course row header, the element card scrolling internally, and the planner buttons stacked vertically with 다음 fully visible.
 - A default-size screenshot confirmed the standard layout is unchanged, and all 15 unit tests still pass.
 - VoiceOver labels/hints existed already on interactive controls; a device VoiceOver sweep remains a manual follow-up.
+
+## 2026-07-23 - Simulator QA round 1: library sync, display name, free-stop sheet
+
+- User-reported bug: unscrapping a course in explore left it visible in the library. The library loaded once and cached; it now silently re-fetches on every tab entry, keeping current content visible during refresh instead of flashing a spinner, and keeping stale content if a background refresh fails.
+- User-requested feature: guests can rename themselves. Added `PATCH /api/v1/me` (1-20 chars, blank rejected, server-side trim) with an integration test asserting the new name appears as `ownerName` on newly created courses. iOS caches the display name from guest issuance, adds a 보관함 toolbar person button with a rename alert, and force-reloads after a rename.
+- User-requested UX change: the two-stage half sheet became a free-stop panel. Dragging the grabber/header follows the finger and stays at any height between a minimum (header always visible) and full height; the course list below is always scrollable, with the selected course sorted first so it stays visible at low heights. Selecting a course still animates up to a peek height that reveals the action bar. `SPEC.md` 4.3 was revised accordingly, and F11/PATCH me were added.
+- HIG basis: `gestures` (direct manipulation follows the finger), `lists-and-tables`, `entering-data` for the rename alert field.
+
+### Verification
+
+- Server tests passed including the rename integration test; all 15 iOS unit tests still pass and the Debug build succeeded.
+- The new panel renders correctly in the simulator with header, scrollable list, and selected-course peek. Drag feel and the rename flow are being checked interactively in the ongoing simulator QA session.

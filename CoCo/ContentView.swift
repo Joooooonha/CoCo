@@ -10,7 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var store: CourseStore
     @State private var selectedTab: MainTab = .explore
-    @State private var sheetStage: ExploreSheetStage = .collapsed
+    @State private var panelHeight: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(store: CourseStore = CourseStore()) {
@@ -26,7 +26,6 @@ struct ContentView: View {
             Tab("등록", systemImage: "plus.circle.fill", value: MainTab.register) {
                 RegisterView { course in
                     selectedTab = .explore
-                    sheetStage = .collapsed
                     Task {
                         await store.loadCourses(force: true)
                         store.selectedCourseID = course.id
@@ -43,8 +42,8 @@ struct ContentView: View {
         }
     }
 
-    /// Scales the collapsed panel with the text size so larger Dynamic Type
-    /// content is not clipped by a fixed height.
+    /// Scales the panel bounds with the text size so larger Dynamic Type
+    /// content is not clipped by fixed heights.
     private var panelTypeScale: CGFloat {
         switch dynamicTypeSize {
         case .xSmall, .small, .medium, .large: 1.0
@@ -59,45 +58,52 @@ struct ContentView: View {
         }
     }
 
-    private func collapsedPanelHeight(fullHeight: CGFloat) -> CGFloat {
-        let base: CGFloat = store.selectedCourse != nil ? 252 : 190
-        return min(base * panelTypeScale, fullHeight * 0.55)
+    private func panelMinHeight(fullHeight: CGFloat) -> CGFloat {
+        min(132 * panelTypeScale, fullHeight * 0.45)
+    }
+
+    /// The height that reveals the selected course row and its action bar.
+    private func panelPeekHeight(fullHeight: CGFloat) -> CGFloat {
+        min(340 * panelTypeScale, fullHeight * 0.6)
     }
 
     private var exploreTab: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let panelHeight = collapsedPanelHeight(fullHeight: proxy.size.height)
-                ZStack(alignment: .bottom) {
-                    MapCanvasView(store: store, bottomInset: panelHeight)
+                let fullHeight = proxy.size.height
+                let minHeight = panelMinHeight(fullHeight: fullHeight)
+                let height = panelHeight == 0
+                    ? min(190 * panelTypeScale, fullHeight * 0.5)
+                    : min(max(panelHeight, minHeight), fullHeight)
 
-                    coursePanel(fullHeight: proxy.size.height, collapsedHeight: panelHeight)
+                ZStack(alignment: .bottom) {
+                    MapCanvasView(store: store, bottomInset: height)
+
+                    CourseSheetView(
+                        store: store,
+                        height: $panelHeight,
+                        currentHeight: height,
+                        minHeight: minHeight,
+                        maxHeight: fullHeight
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: height, alignment: .top)
+                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+                    .shadow(color: .black.opacity(0.15), radius: 10, y: -3)
+                }
+                .onChange(of: store.selectedCourseID) { _, newValue in
+                    let peekHeight = panelPeekHeight(fullHeight: fullHeight)
+                    if newValue != nil, height < peekHeight {
+                        withAnimation(.spring(duration: 0.32)) {
+                            panelHeight = peekHeight
+                        }
+                    }
                 }
             }
             .navigationTitle("CoCo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
-    }
-
-    private func coursePanel(fullHeight: CGFloat, collapsedHeight: CGFloat) -> some View {
-        CourseSheetView(store: store, stage: $sheetStage)
-            .frame(maxWidth: .infinity)
-            .frame(height: sheetStage == .expanded ? fullHeight : collapsedHeight, alignment: .top)
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
-            .shadow(color: .black.opacity(0.15), radius: 10, y: -3)
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 20)
-                    .onEnded { value in
-                        if value.translation.height < -40 {
-                            sheetStage = .expanded
-                        } else if value.translation.height > 40 {
-                            sheetStage = .collapsed
-                        }
-                    },
-                including: sheetStage == .collapsed ? .all : .subviews
-            )
-            .animation(.spring(duration: 0.32), value: sheetStage)
     }
 }
 

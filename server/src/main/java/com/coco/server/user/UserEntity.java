@@ -34,6 +34,10 @@ public class UserEntity {
         this.accountType = accountType;
     }
 
+    public void rename(String displayName) {
+        this.displayName = displayName;
+    }
+
     public UUID getId() {
         return id;
     }

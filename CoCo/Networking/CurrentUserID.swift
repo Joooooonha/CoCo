@@ -19,3 +19,21 @@ enum CurrentUserID {
         }
     }
 }
+
+/// The current guest's display name, cached for profile UI.
+enum CurrentUserName {
+    private static let defaultsKey = "coco.currentUserName"
+
+    static var value: String? {
+        get {
+            UserDefaults.standard.string(forKey: defaultsKey)
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: defaultsKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: defaultsKey)
+            }
+        }
+    }
+}

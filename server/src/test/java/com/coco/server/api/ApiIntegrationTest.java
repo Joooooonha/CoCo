@@ -288,6 +288,44 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void userCanRenameAndOwnedCoursesShowNewName() throws Exception {
+        String authorization = issueGuestAuthorization();
+        UUID courseId = null;
+
+        try {
+            mockMvc.perform(patch("/api/v1/me")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"달빛러너\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.displayName").value("달빛러너"))
+                    .andExpect(jsonPath("$.accountType").value("GUEST"));
+
+            mockMvc.perform(patch("/api/v1/me")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"   \"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+            String createdBody = mockMvc.perform(post("/api/v1/courses")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(validCourseJson("개명 확인 코스")))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.ownerName").value("달빛러너"))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            courseId = UUID.fromString(objectMapper.readTree(createdBody).get("id").asText());
+        } finally {
+            if (courseId != null) {
+                courseRepository.deleteById(courseId);
+            }
+        }
+    }
+
+    @Test
     void importedGpxCourseIsAccepted() throws Exception {
         String authorization = issueGuestAuthorization();
         UUID courseId = null;

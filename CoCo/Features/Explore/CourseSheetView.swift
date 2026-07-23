@@ -1,23 +1,27 @@
 import SwiftUI
 
-enum ExploreSheetStage {
-    case collapsed
-    case expanded
-}
-
 struct CourseSheetView: View {
     @Bindable var store: CourseStore
-    @Binding var stage: ExploreSheetStage
+    @Binding var height: CGFloat
+    let currentHeight: CGFloat
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+
+    @State private var dragBaseHeight: CGFloat?
 
     private var isExpanded: Bool {
-        stage == .expanded
+        currentHeight > (minHeight + maxHeight) / 2
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            grabber
+            VStack(spacing: 0) {
+                grabber
 
-            header
+                header
+            }
+            .contentShape(Rectangle())
+            .gesture(resizeGesture)
 
             Divider()
 
@@ -43,13 +47,26 @@ struct CourseSheetView: View {
         .background(Color(uiColor: .systemGroupedBackground))
     }
 
+    /// Follows the finger continuously and stays wherever the drag ends,
+    /// clamped between the minimum and maximum heights.
+    private var resizeGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                let baseHeight = dragBaseHeight ?? currentHeight
+                dragBaseHeight = baseHeight
+                height = min(max(baseHeight - value.translation.height, minHeight), maxHeight)
+            }
+            .onEnded { _ in
+                dragBaseHeight = nil
+            }
+    }
+
     private var grabber: some View {
         Capsule()
             .fill(Color(uiColor: .systemGray3))
             .frame(width: 36, height: 5)
             .padding(.top, 6)
             .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
             .accessibilityHidden(true)
     }
 
@@ -74,7 +91,9 @@ struct CourseSheetView: View {
             Spacer()
 
             Button {
-                stage = isExpanded ? .collapsed : .expanded
+                withAnimation(.spring(duration: 0.32)) {
+                    height = isExpanded ? minHeight : maxHeight
+                }
             } label: {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
                     .font(.body.weight(.semibold))
@@ -97,50 +116,36 @@ struct CourseSheetView: View {
         }
     }
 
-    @ViewBuilder
     private var loadedContent: some View {
-        if isExpanded {
-            List(store.courses) { course in
-                CourseRow(
-                    store: store,
-                    course: course,
-                    isSelected: store.selectedCourseID == course.id,
-                    showsDetails: store.selectedCourseID == course.id,
-                    action: {
-                        store.toggleSelection(course)
-                    },
-                    onAddElement: {
-                        store.isAddingElement = true
-                        stage = .collapsed
-                    }
-                )
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-        } else if let selectedCourse = store.selectedCourse {
+        // The list stays scrollable at every sheet height; selected courses
+        // sort first so they remain visible in low sheet positions.
+        List(orderedCourses) { course in
             CourseRow(
                 store: store,
-                course: selectedCourse,
-                isSelected: true,
-                showsDetails: false,
+                course: course,
+                isSelected: store.selectedCourseID == course.id,
+                showsDetails: store.selectedCourseID == course.id,
                 action: {
-                    store.toggleSelection(selectedCourse)
+                    store.toggleSelection(course)
                 },
                 onAddElement: {
                     store.isAddingElement = true
-                    stage = .collapsed
+                    withAnimation(.spring(duration: 0.32)) {
+                        height = minHeight
+                    }
                 }
             )
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        } else {
-            ContentUnavailableView(
-                "코스를 선택해 경로를 확인하세요",
-                systemImage: "figure.run.circle",
-                description: Text("목록을 펼치면 공유 코스 \(store.courses.count)개를 볼 수 있어요.")
-            )
-            .frame(maxHeight: .infinity)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    private var orderedCourses: [Course] {
+        guard let selectedCourseID = store.selectedCourseID else { return store.courses }
+        return store.courses.sorted { first, second in
+            (first.id == selectedCourseID ? 0 : 1, first.name)
+                < (second.id == selectedCourseID ? 0 : 1, second.name)
         }
     }
 

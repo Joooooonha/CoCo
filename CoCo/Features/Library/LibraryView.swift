@@ -2,6 +2,8 @@ import SwiftUI
 
 struct LibraryView: View {
     @State private var store: LibraryStore
+    @State private var isEditingName = false
+    @State private var nameDraft = ""
 
     init(store: LibraryStore = LibraryStore()) {
         _store = State(initialValue: store)
@@ -15,11 +17,59 @@ struct LibraryView: View {
                     ToolbarItem(placement: .principal) {
                         segmentPicker
                     }
+
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            nameDraft = store.profileName ?? ""
+                            isEditingName = true
+                        } label: {
+                            Label("내 이름 바꾸기", systemImage: "person.crop.circle")
+                        }
+                        .accessibilityHint("코스에 표시되는 내 이름을 바꿉니다")
+                    }
+                }
+                .alert("내 이름 바꾸기", isPresented: $isEditingName) {
+                    TextField("표시 이름 (1~20자)", text: $nameDraft)
+
+                    Button("저장") {
+                        Task {
+                            await store.updateDisplayName(nameDraft)
+                        }
+                    }
+
+                    Button("취소", role: .cancel) {
+                    }
+                } message: {
+                    Text(currentNameMessage)
+                }
+                .alert(
+                    "이름을 바꾸지 못했어요",
+                    isPresented: Binding(
+                        get: { store.profileErrorMessage != nil },
+                        set: { if !$0 { store.clearProfileError() } }
+                    )
+                ) {
+                    Button("확인", role: .cancel) {
+                        store.clearProfileError()
+                    }
+                } message: {
+                    Text(store.profileErrorMessage ?? "")
                 }
         }
-        .task {
-            await store.load()
+        .onAppear {
+            // Refreshes silently on every tab entry so scrap and course
+            // changes made in other tabs stay in sync.
+            Task {
+                await store.load(force: true)
+            }
         }
+    }
+
+    private var currentNameMessage: String {
+        if let profileName = store.profileName {
+            return "지금은 \(profileName)(으)로 표시돼요. 새 코스와 목록에 함께 반영됩니다."
+        }
+        return "코스에 표시되는 이름을 설정해요."
     }
 
     @ViewBuilder
