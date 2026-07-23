@@ -48,6 +48,32 @@ struct Course: Codable, Hashable, Identifiable, Sendable {
         Int(ceil(Double(estimatedDurationSeconds) / 60))
     }
 
+    /// Whether any part of the route lies inside the given map viewport.
+    func overlaps(_ viewport: MapViewport) -> Bool {
+        let latitudes = routePoints.map(\.latitude)
+        let longitudes = routePoints.map(\.longitude)
+        guard let minLatitude = latitudes.min(),
+              let maxLatitude = latitudes.max(),
+              let minLongitude = longitudes.min(),
+              let maxLongitude = longitudes.max() else {
+            return true
+        }
+        return viewport.intersects(
+            minLatitude: minLatitude,
+            maxLatitude: maxLatitude,
+            minLongitude: minLongitude,
+            maxLongitude: maxLongitude
+        )
+    }
+
+    /// Whether the course matches a free-text query over its visible fields.
+    func matches(query: String) -> Bool {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return true }
+        return [name, summary, locationLabel, ownerName]
+            .contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+    }
+
     mutating func setScrapped(_ newValue: Bool) {
         guard isScrapped != newValue else { return }
         isScrapped = newValue

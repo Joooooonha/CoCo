@@ -409,3 +409,11 @@
 
 - Debug build succeeded; the full-bleed screenshot shows the map under the status bar with the sheet and tab bar as the only other surfaces.
 - Element swipe paging, the selection highlight, and Files-app GPX selection continue under interactive simulator QA.
+
+## 2026-07-23 - Simulator QA round 4: map-area filter and course search
+
+- User feedback: the sheet header promised "이 지도 영역에서" but always listed every course, and there was no search. Both were SPEC-excluded; the user approved adding them (F12, F13) while geocoding stays out.
+- Added an SDK-free `MapViewport` domain type; the map reports its visible region at the MapKit boundary via `onMapCameraChange`, and `CourseStore.visibleCourses` filters by route bounding-box overlap plus a free-text query over name, summary, location, and owner. The selected course always stays listed, and the header count now reflects the filtered list.
+- The sheet gains a search field with a clear button and an empty-filter state ("지도를 움직이거나 검색어를 바꿔 보세요").
+- Four new unit tests cover viewport filtering, selected-course pinning, text search fields, and the combined filter (19 total tests pass).
+- Also this round: explore now silently refreshes on tab entry so display-name changes reach the shared list, the element editor sheet gained the photo-slot placeholder, and the file-sharing Info.plist keys were fixed by declaring them in the plist file directly (the `INFOPLIST_KEY_UIFileSharingEnabled` build setting was silently ignored).

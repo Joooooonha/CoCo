@@ -19,6 +19,8 @@ final class CourseStore {
     var selectedCourseID: Course.ID?
     var selectedElement: CourseElement?
     var isAddingElement = false
+    var searchText = ""
+    var visibleViewport: MapViewport?
     private(set) var isSavingElement = false
     @ObservationIgnored private let apiClient: CourseAPIClient
 
@@ -37,6 +39,20 @@ final class CourseStore {
 
     var selectedCourse: Course? {
         courses.first { $0.id == selectedCourseID }
+    }
+
+    /// Courses shown in the sheet: limited to the visible map area and the
+    /// search query. The selected course always stays listed.
+    var visibleCourses: [Course] {
+        courses.filter { course in
+            if course.id == selectedCourseID {
+                return true
+            }
+            if let visibleViewport, !course.overlaps(visibleViewport) {
+                return false
+            }
+            return course.matches(query: searchText)
+        }
     }
 
     var isSelectedCourseMine: Bool {

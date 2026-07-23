@@ -111,6 +111,16 @@ struct MapCanvasView: View {
             } onDelete: { _ in
             }
         }
+        .onMapCameraChange(frequency: .onEnd) { context in
+            // Convert to the SDK-free viewport at the MapKit boundary.
+            let region = context.region
+            store.visibleViewport = MapViewport(
+                minLatitude: region.center.latitude - region.span.latitudeDelta / 2,
+                maxLatitude: region.center.latitude + region.span.latitudeDelta / 2,
+                minLongitude: region.center.longitude - region.span.longitudeDelta / 2,
+                maxLongitude: region.center.longitude + region.span.longitudeDelta / 2
+            )
+        }
         .onChange(of: store.selectedCourseID) {
             updatePosition()
         }

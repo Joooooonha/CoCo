@@ -34,6 +34,8 @@ struct CourseSheetView: View {
             if let element = store.selectedElement {
                 elementDetailContent(element)
             } else {
+                searchField
+
                 switch store.loadState {
                 case .idle, .loading:
                     loadingContent
@@ -273,19 +275,62 @@ struct CourseSheetView: View {
         .padding(.vertical, 10)
     }
 
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            TextField("코스 이름·지역·작성자 검색", text: $store.searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            if !store.searchText.isEmpty {
+                Button {
+                    store.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("검색어 지우기")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 38)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
     private var courseCountTitle: String {
         switch store.loadState {
         case .loaded:
-            "러닝 코스 \(store.courses.count)개"
+            "러닝 코스 \(store.visibleCourses.count)개"
         default:
             "러닝 코스"
         }
     }
 
+    @ViewBuilder
     private var loadedContent: some View {
+        if store.visibleCourses.isEmpty {
+            ContentUnavailableView {
+                Label("조건에 맞는 코스가 없어요", systemImage: "magnifyingglass")
+            } description: {
+                Text("지도를 움직이거나 검색어를 바꿔 보세요.")
+            }
+            .frame(maxHeight: .infinity)
+        } else {
+            courseList
+        }
+    }
+
+    private var courseList: some View {
         // The list keeps its order so scroll position stays meaningful;
         // a selected course expands in place below its own card.
-        List(store.courses) { course in
+        List(store.visibleCourses) { course in
             CourseRow(
                 store: store,
                 course: course,
