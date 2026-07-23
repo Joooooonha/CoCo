@@ -45,6 +45,26 @@ struct ElementDraftEditorView: View {
                         .lineLimit(2...5)
                 }
 
+                Section("사진") {
+                    // Photo slot placeholder until image upload ships with S3.
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(height: 110)
+                        .overlay {
+                            VStack(spacing: 6) {
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.title3)
+                                    .foregroundStyle(.secondary)
+
+                                Text("사진 추가는 준비 중이에요")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                        .accessibilityLabel("요소 사진 추가 자리, 준비 중")
+                }
+
                 Section {
                     LabeledContent("경로상 위치", value: distanceLabel)
                 }

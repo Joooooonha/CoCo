@@ -58,16 +58,27 @@ final class CourseStore {
         selectedElement = nil
     }
 
+    @ObservationIgnored private var isFetching = false
+
     func loadCourses(force: Bool = false) async {
-        guard loadState != .loading else { return }
+        guard !isFetching else { return }
         guard force || loadState == .idle else { return }
 
-        loadState = .loading
+        isFetching = true
+        defer { isFetching = false }
+
+        // Refreshes keep showing current content instead of flashing a spinner.
+        let hadContent = loadState == .loaded
+        if !hadContent {
+            loadState = .loading
+        }
 
         do {
             let loadedCourses = try await apiClient.fetchCourses()
             guard !Task.isCancelled else {
-                loadState = .idle
+                if !hadContent {
+                    loadState = .idle
+                }
                 return
             }
 
@@ -76,11 +87,20 @@ final class CourseStore {
                 self.selectedCourseID = nil
                 selectedElement = nil
             }
+            if let selectedElement,
+               let refreshedElement = selectedCourse?.elements.first(where: { $0.id == selectedElement.id }) {
+                self.selectedElement = refreshedElement
+            }
             loadState = courses.isEmpty ? .empty : .loaded
         } catch is CancellationError {
-            loadState = .idle
+            if !hadContent {
+                loadState = .idle
+            }
         } catch {
-            loadState = .failed(message: message(for: error))
+            // A failed silent refresh keeps the last shown content.
+            if !hadContent {
+                loadState = .failed(message: message(for: error))
+            }
         }
     }
 

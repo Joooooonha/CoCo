@@ -114,6 +114,13 @@ struct ContentView: View {
             // already anchors the app identity, so no title bar is needed.
             .toolbar(.hidden, for: .navigationBar)
         }
+        .onAppear {
+            // Refreshes silently on every tab entry so renames and course
+            // changes made in other tabs stay in sync.
+            Task {
+                await store.loadCourses(force: true)
+            }
+        }
     }
 }
 
