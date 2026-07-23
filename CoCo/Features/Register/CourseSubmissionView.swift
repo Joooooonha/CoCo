@@ -51,47 +51,12 @@ struct CourseSubmissionView: View {
                 Text("요소는 경로 위 가장 가까운 지점에 붙습니다. 등록에는 요소가 1개 이상 필요해요.")
             }
 
-            Section {
-                Button {
-                    Task {
-                        if let course = await planner.submitCourse() {
-                            let registeredCourse = course
-                            planner.resetAll()
-                            dismiss()
-                            onRegistered(registeredCourse)
-                        }
-                    }
-                } label: {
-                    if planner.isSubmitting {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("등록하는 중")
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                    } else {
-                        Text("코스 등록")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(!planner.canSubmit)
-                .listRowInsets(EdgeInsets())
-
-                if let submissionErrorMessage = planner.submissionErrorMessage {
-                    Text(submissionErrorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-            } footer: {
-                if !planner.canSubmit, !planner.isSubmitting {
-                    Text(validationHint)
-                }
-            }
         }
         .navigationTitle("코스 정보 입력")
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            submitBar
+        }
         .sheet(item: $editingDraft) { draft in
             ElementDraftEditorView(draft: draft) { updatedDraft in
                 if let index = planner.elementDrafts.firstIndex(where: { $0.id == updatedDraft.id }) {
@@ -103,6 +68,50 @@ struct CourseSubmissionView: View {
                 planner.elementDrafts.removeAll { $0.id == deletedDraft.id }
             }
         }
+    }
+
+    private var submitBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let submissionErrorMessage = planner.submissionErrorMessage {
+                Text(submissionErrorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            } else if !planner.canSubmit, !planner.isSubmitting, !validationHint.isEmpty {
+                Text(validationHint)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                Task {
+                    if let course = await planner.submitCourse() {
+                        let registeredCourse = course
+                        planner.resetAll()
+                        dismiss()
+                        onRegistered(registeredCourse)
+                    }
+                }
+            } label: {
+                if planner.isSubmitting {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("등록하는 중")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                } else {
+                    Text("코스 등록")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .disabled(!planner.canSubmit)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial)
     }
 
     private var elementMap: some View {

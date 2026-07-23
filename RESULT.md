@@ -301,3 +301,11 @@
 - PostgreSQL confirmed the final state: exactly one element titled `수정된 전망` at 400 m. The verification course was then deleted and the local server stopped.
 - Seed courses owned by other users continue to show no management controls; the server-side S10 rejection remains covered by integration tests.
 - Real map-tap snapping still needs an on-device pass in Phase 7, since simulator tap injection is unavailable in this environment.
+
+## 2026-07-23 - Phase 6.4 Pinned course submit action
+
+- User feedback from device testing: the 코스 등록 button was only reachable by scrolling to the bottom of the step-2 form and read as missing.
+- Moved the submit action out of the form into a bottom `safeAreaInset` bar with a material background, matching the step-1 다음 button, so the primary action is always visible above the tab bar.
+- The bar shows the submission error, or the validation hint listing missing requirements while the button is disabled.
+- HIG basis: forms should keep the primary action readily accessible; progression stays disabled until required data exists (`entering-data`).
+- Verification: Debug build succeeded; a temporary scripted run (removed afterward) captured step 2 on an iPhone 16e simulator with the pinned disabled 코스 등록 button and the 요소-필요 hint visible without scrolling.
