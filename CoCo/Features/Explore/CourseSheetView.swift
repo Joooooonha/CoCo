@@ -119,7 +119,32 @@ struct CourseSheetView: View {
         .padding(.vertical, 10)
     }
 
+    /// Pages between the course's elements with horizontal swipes.
     private func elementDetailContent(_ element: CourseElement) -> some View {
+        let elements = store.selectedCourse?.elements ?? [element]
+
+        return TabView(selection: elementSelectionBinding(fallback: element)) {
+            ForEach(elements) { pageElement in
+                elementDetailPage(pageElement)
+                    .tag(pageElement.id)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: elements.count > 1 ? .always : .never))
+        .indexViewStyle(.page(backgroundDisplayMode: .always))
+    }
+
+    private func elementSelectionBinding(fallback: CourseElement) -> Binding<UUID> {
+        Binding(
+            get: { store.selectedElement?.id ?? fallback.id },
+            set: { newID in
+                if let element = store.selectedCourse?.elements.first(where: { $0.id == newID }) {
+                    store.selectedElement = element
+                }
+            }
+        )
+    }
+
+    private func elementDetailPage(_ element: CourseElement) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(elementDistanceLabel(element))
@@ -260,6 +285,11 @@ struct CourseSheetView: View {
                 }
             )
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(
+                store.selectedCourseID == course.id
+                    ? Color.green.opacity(0.12)
+                    : Color.clear
+            )
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
