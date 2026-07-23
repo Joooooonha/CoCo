@@ -22,6 +22,17 @@ struct ContentView: View {
                 exploreTab
             }
 
+            Tab("등록", systemImage: "plus.circle.fill", value: MainTab.register) {
+                RegisterView { course in
+                    selectedTab = .explore
+                    sheetStage = .collapsed
+                    Task {
+                        await store.loadCourses(force: true)
+                        store.selectedCourseID = course.id
+                    }
+                }
+            }
+
             Tab("보관함", systemImage: "bookmark.fill", value: MainTab.library) {
                 LibraryView()
             }
@@ -73,6 +84,7 @@ struct ContentView: View {
 
 private enum MainTab: Hashable {
     case explore
+    case register
     case library
 }
 

@@ -27,6 +27,17 @@ struct CourseAPIClient {
         try await fetchCourseList(path: "api/v1/me/courses")
     }
 
+    func createCourse(_ payload: CourseCreatePayload) async throws -> Course {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/courses"))
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(payload)
+            return try await send(request)
+        }
+    }
+
     func updateScrap(courseID: UUID, isScrapped: Bool) async throws {
         try await withAuthorization { token in
             var request = URLRequest(url: endpoint("api/v1/courses/\(courseID.uuidString)/scrap"))
@@ -119,6 +130,32 @@ struct CourseAPIClient {
     private func endpoint(_ path: String) -> URL {
         baseURL.appending(path: path)
     }
+}
+
+struct CourseCreatePayload: Encodable, Sendable {
+    struct RoutePointPayload: Encodable, Sendable {
+        let sequence: Int
+        let latitude: Double
+        let longitude: Double
+    }
+
+    struct ElementPayload: Encodable, Sendable {
+        let category: ElementCategory
+        let latitude: Double
+        let longitude: Double
+        let distanceFromStartMeters: Int
+        let title: String
+        let description: String
+    }
+
+    let name: String
+    let summary: String
+    let difficulty: CourseDifficulty
+    let distanceMeters: Int
+    let estimatedDurationSeconds: Int
+    let routeSource: RouteSource
+    let routePoints: [RoutePointPayload]
+    let elements: [ElementPayload]
 }
 
 private struct GuestAuthResponse: Decodable {

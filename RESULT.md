@@ -257,3 +257,26 @@
 - `./gradlew test --no-daemon --rerun-tasks` succeeded with Testcontainers PostgreSQL 17.
 - New integration tests cover successful registration appearing in `me/courses` and the shared list, missing-element and duplicated-sequence and unsupported-source rejections, owner element add/patch/delete, the last-element conflict, and S10 non-owner rejections against seeded course elements.
 - Tests that create courses clean them up so seed-count assertions stay deterministic.
+
+## 2026-07-23 - Phase 6.2 iOS registration tab and route planning
+
+- Added the third 등록 tab (user decision) between 탐색 and 보관함 with a two-step push flow, matching the confirmed wire structure.
+- Step 1 is a full-map planner: taps append 출발 → 경유(≤5) → 도착 waypoints (7 total max), with 되돌리기/순환 코스/지우기 controls, per-segment `MKDirections` walking calculation, an inline distance·duration·point summary, a calculation progress state, a retry action on failure, and a camera that fits the computed route.
+- Step 2 is a form: name, one-line summary, segmented difficulty, a route preview map where tapping snaps a new element to the nearest route vertex with its cumulative distance from the start, an element list with edit sheet (category/title/description) and swipe-to-delete, and a submit button that stays disabled with a hint listing missing requirements.
+- Successful registration resets the planner, switches to the explore tab, force-reloads courses, and selects the new course; submission failures show an inline error and keep the draft.
+- Route coordinates are downsampled to the server's 2,000-point cap before upload; `locationLabel` is omitted so the server default applies.
+- Kept all MapKit types inside the Register feature boundary; the API payload uses plain latitude/longitude values.
+
+### HIG files loaded
+
+- Tier 1: `accessibility`, `branding`, `color`, `dark-mode`, `design-principles`, `icons`, `images`, `inclusion`, `layout`, `materials`, `motion`, `privacy`, `right-to-left`, `sf-symbols`, `typography`, `writing`.
+- Tier 2: `designing-for-ios`.
+- Tier 3: `tab-bars`, `buttons`, `lists-and-tables`, `sheets`, `feedback`, `toggles`, `maps`, `segmented-controls`, `entering-data`, `text-fields`, `pickers`, `progress-indicators`.
+
+### Verification
+
+- Debug builds succeeded with Xcode 26.3 and the iOS 26.2 SDK.
+- With the simulator input tools still unavailable, a temporary scripted walkthrough (removed afterward; zero TEMP markers remain) drove the full flow headlessly on an iPhone 16e simulator against the local Spring server: three Yeouido waypoints produced a real 1.2 km walking route, the step-2 form rendered the draft element snapped to the route at 536 m, and submission created the course.
+- The local database showed the created course with 26 route points and the element at 536 m; after submission the app switched to the explore tab with the new course selected, its route, element pin, and legend visible, and the shared list showing three courses.
+- The verification course was deleted from the local development database afterward; production was not used for this UI verification.
+- S7, S8 (server-side), and S9 scenario behavior is now implemented; on-device manual verification and iOS automated tests remain for the Phase 7 quality pass.

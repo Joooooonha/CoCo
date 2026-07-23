@@ -101,3 +101,10 @@
 
 - Bean Validation on nested request records with `@Valid` lists
 - Server-side ownership from the token instead of client-sent owner IDs
+
+## 2026-07-23 - Phase 6.2
+
+### Learning keywords
+
+- `MapReader`/`proxy.convert` for map-tap coordinate capture
+- Snapping tapped points to a polyline with `MKMapPoint` distances
