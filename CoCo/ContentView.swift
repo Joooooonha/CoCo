@@ -77,7 +77,9 @@ struct ContentView: View {
                     : min(max(panelHeight, minHeight), fullHeight)
 
                 ZStack(alignment: .bottom) {
-                    MapCanvasView(store: store, bottomInset: height)
+                    // The map keeps a fixed inset so raising the sheet slides
+                    // over it instead of squeezing the map contents.
+                    MapCanvasView(store: store, bottomInset: minHeight)
 
                     CourseSheetView(
                         store: store,
@@ -92,6 +94,14 @@ struct ContentView: View {
                     .shadow(color: .black.opacity(0.15), radius: 10, y: -3)
                 }
                 .onChange(of: store.selectedCourseID) { _, newValue in
+                    let peekHeight = panelPeekHeight(fullHeight: fullHeight)
+                    if newValue != nil, height < peekHeight {
+                        withAnimation(.spring(duration: 0.32)) {
+                            panelHeight = peekHeight
+                        }
+                    }
+                }
+                .onChange(of: store.selectedElement) { _, newValue in
                     let peekHeight = panelPeekHeight(fullHeight: fullHeight)
                     if newValue != nil, height < peekHeight {
                         withAnimation(.spring(duration: 0.32)) {

@@ -381,3 +381,18 @@
 
 - Server tests passed including the rename integration test; all 15 iOS unit tests still pass and the Debug build succeeded.
 - The new panel renders correctly in the simulator with header, scrollable list, and selected-course peek. Drag feel and the rename flow are being checked interactively in the ongoing simulator QA session.
+
+## 2026-07-23 - Simulator QA round 2: surface layering and independent map
+
+- User feedback: the tab bar, half sheet, and floating element modal stacked into three competing bottom surfaces, and raising the sheet squeezed the map (legend and pins shifted upward).
+- Element details moved from a floating dimmed overlay into the half sheet itself, following the Apple Maps annotation pattern: the sheet header switches to a back button, category badge, and title, and the content area shows distance, description, and owner edit/delete actions. Visible surfaces are now capped at map, sheet, and tab bar.
+- The map now keeps a fixed bottom inset equal to the sheet's minimum height, so dragging the sheet slides it over the map instead of resizing the map. Selecting an element raises the sheet to peek height when needed.
+- Owner element editing and delete confirmation moved into the sheet; the map keeps only the add-element tap flow.
+- `SPEC.md` 4.3 records the independent map/sheet rule and the in-sheet element detail with the three-surface cap.
+- HIG basis: `modality` (avoid stacked modal surfaces), `sheets`, `maps` (annotation details belong to the map's companion sheet).
+
+### Verification
+
+- Debug build succeeded; zero TEMP markers remain after the scripted screenshot pass.
+- The screenshot shows the element detail inside the sheet with the full-bleed map behind it, no dimming layer, and unshifted map annotations.
+- Drag feel and the back-to-list flow continue under interactive simulator QA.

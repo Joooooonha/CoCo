@@ -6,8 +6,7 @@ struct MapCanvasView: View {
     var bottomInset: CGFloat = 190
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var position: MapCameraPosition = .region(.seoulOverview)
-    @State private var editingElement: EditingElementDraft?
-    @State private var elementPendingDeletion: CourseElement?
+    @State private var newElementDraft: ElementDraft?
 
     var body: some View {
         MapReader { proxy in
@@ -18,17 +17,14 @@ struct MapCanvasView: View {
                           let course = store.selectedCourse,
                           let tapped = proxy.convert(screenPoint, from: .local),
                           let snapped = course.nearestRoutePoint(to: tapped) else { return }
-                    editingElement = EditingElementDraft(
-                        draft: ElementDraft(
-                            id: UUID(),
-                            category: .view,
-                            latitude: snapped.coordinate.latitude,
-                            longitude: snapped.coordinate.longitude,
-                            distanceFromStartMeters: snapped.distanceFromStartMeters,
-                            title: "",
-                            description: ""
-                        ),
-                        isNew: true
+                    newElementDraft = ElementDraft(
+                        id: UUID(),
+                        category: .view,
+                        latitude: snapped.coordinate.latitude,
+                        longitude: snapped.coordinate.longitude,
+                        distanceFromStartMeters: snapped.distanceFromStartMeters,
+                        title: "",
+                        description: ""
                     )
                 }
         }
@@ -106,55 +102,14 @@ struct MapCanvasView: View {
                 addElementBanner
             }
         }
-        .overlay {
-            if let element = store.selectedElement {
-                ElementDetailOverlay(
-                    element: element,
-                    canManage: store.isSelectedCourseMine,
-                    isBusy: store.isSavingElement,
-                    onEdit: {
-                        editingElement = EditingElementDraft(draft: ElementDraft(element: element), isNew: false)
-                    },
-                    onDelete: {
-                        elementPendingDeletion = element
-                    },
-                    onDismiss: {
-                        store.dismissElementDetails()
-                    }
-                )
-            }
-        }
-        .sheet(item: $editingElement) { editing in
-            ElementDraftEditorView(draft: editing.draft) { draft in
+        .sheet(item: $newElementDraft) { draft in
+            ElementDraftEditorView(draft: draft) { updatedDraft in
                 Task {
-                    _ = await store.saveElement(draft, isNew: editing.isNew, for: store.selectedCourseID ?? draft.id)
+                    guard let courseID = store.selectedCourseID else { return }
+                    _ = await store.saveElement(updatedDraft, isNew: true, for: courseID)
                 }
-            } onDelete: { draft in
-                if let element = store.selectedCourse?.elements.first(where: { $0.id == draft.id }) {
-                    elementPendingDeletion = element
-                }
+            } onDelete: { _ in
             }
-        }
-        .confirmationDialog(
-            "이 요소를 삭제할까요?",
-            isPresented: Binding(
-                get: { elementPendingDeletion != nil },
-                set: { if !$0 { elementPendingDeletion = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("요소 삭제", role: .destructive) {
-                guard let element = elementPendingDeletion else { return }
-                elementPendingDeletion = nil
-                Task {
-                    await store.deleteElement(element)
-                }
-            }
-            Button("취소", role: .cancel) {
-                elementPendingDeletion = nil
-            }
-        } message: {
-            Text("삭제한 요소는 되돌릴 수 없어요.")
         }
         .onChange(of: store.selectedCourseID) {
             updatePosition()
@@ -244,115 +199,6 @@ private struct CompactLegendLabelStyle: LabelStyle {
                 .font(.caption2)
                 .foregroundStyle(.primary)
         }
-    }
-}
-
-private struct EditingElementDraft: Identifiable {
-    let draft: ElementDraft
-    let isNew: Bool
-
-    var id: UUID { draft.id }
-}
-
-private struct ElementDetailOverlay: View {
-    let element: CourseElement
-    let canManage: Bool
-    let isBusy: Bool
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.22)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    Label(element.category.displayName, systemImage: element.category.symbolName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(element.category.tint)
-
-                    Spacer()
-
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("요소 상세 닫기")
-                }
-
-                // Scroll only when large text makes the details exceed the card cap.
-                ViewThatFits(in: .vertical) {
-                    detailContent
-
-                    ScrollView {
-                        detailContent
-                    }
-                }
-            }
-            .padding(16)
-            .frame(maxWidth: 340, alignment: .leading)
-            .frame(maxHeight: 460)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 20)
-            .padding(.bottom, 180)
-            .shadow(radius: 14, y: 6)
-        }
-    }
-
-    private var detailContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(distanceLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(element.title)
-                .font(.title3.weight(.bold))
-
-            Text(element.description)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if canManage {
-                HStack(spacing: 8) {
-                    Button {
-                        onEdit()
-                    } label: {
-                        Label("수정", systemImage: "pencil")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(minHeight: 28)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .accessibilityHint("요소 내용을 수정합니다")
-
-                    Button(role: .destructive) {
-                        onDelete()
-                    } label: {
-                        Label("삭제", systemImage: "trash")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(minHeight: 28)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .accessibilityHint("요소를 삭제합니다")
-                }
-                .disabled(isBusy)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var distanceLabel: String {
-        if element.distanceFromStartMeters >= 1_000 {
-            return String(format: "출발점에서 %.1f km", Double(element.distanceFromStartMeters) / 1_000)
-        }
-        return "출발점에서 \(element.distanceFromStartMeters) m"
     }
 }
 

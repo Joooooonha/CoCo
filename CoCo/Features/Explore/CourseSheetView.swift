@@ -8,6 +8,8 @@ struct CourseSheetView: View {
     let maxHeight: CGFloat
 
     @State private var dragBaseHeight: CGFloat?
+    @State private var editingElementDraft: ElementDraft?
+    @State private var elementPendingDeletion: CourseElement?
 
     private var isExpanded: Bool {
         currentHeight > (minHeight + maxHeight) / 2
@@ -18,33 +20,155 @@ struct CourseSheetView: View {
             VStack(spacing: 0) {
                 grabber
 
-                header
+                if let element = store.selectedElement {
+                    elementDetailHeader(element)
+                } else {
+                    header
+                }
             }
             .contentShape(Rectangle())
             .gesture(resizeGesture)
 
             Divider()
 
-            switch store.loadState {
-            case .idle, .loading:
-                loadingContent
-            case .failed(let message):
-                stateContent(
-                    title: "코스를 불러올 수 없어요",
-                    description: message,
-                    symbolName: "wifi.exclamationmark"
-                )
-            case .empty:
-                stateContent(
-                    title: "등록된 코스가 없어요",
-                    description: "새 코스를 확인하려면 다시 불러와 주세요.",
-                    symbolName: "figure.run.circle"
-                )
-            case .loaded:
-                loadedContent
+            if let element = store.selectedElement {
+                elementDetailContent(element)
+            } else {
+                switch store.loadState {
+                case .idle, .loading:
+                    loadingContent
+                case .failed(let message):
+                    stateContent(
+                        title: "코스를 불러올 수 없어요",
+                        description: message,
+                        symbolName: "wifi.exclamationmark"
+                    )
+                case .empty:
+                    stateContent(
+                        title: "등록된 코스가 없어요",
+                        description: "새 코스를 확인하려면 다시 불러와 주세요.",
+                        symbolName: "figure.run.circle"
+                    )
+                case .loaded:
+                    loadedContent
+                }
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .sheet(item: $editingElementDraft) { draft in
+            ElementDraftEditorView(draft: draft) { updatedDraft in
+                Task {
+                    guard let courseID = store.selectedCourseID else { return }
+                    _ = await store.saveElement(updatedDraft, isNew: false, for: courseID)
+                }
+            } onDelete: { deletedDraft in
+                if let element = store.selectedCourse?.elements.first(where: { $0.id == deletedDraft.id }) {
+                    elementPendingDeletion = element
+                }
+            }
+        }
+        .confirmationDialog(
+            "이 요소를 삭제할까요?",
+            isPresented: Binding(
+                get: { elementPendingDeletion != nil },
+                set: { if !$0 { elementPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("요소 삭제", role: .destructive) {
+                guard let element = elementPendingDeletion else { return }
+                elementPendingDeletion = nil
+                Task {
+                    await store.deleteElement(element)
+                }
+            }
+            Button("취소", role: .cancel) {
+                elementPendingDeletion = nil
+            }
+        } message: {
+            Text("삭제한 요소는 되돌릴 수 없어요.")
+        }
+    }
+
+    private func elementDetailHeader(_ element: CourseElement) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Button {
+                store.dismissElementDetails()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .background(.quaternary, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("코스 목록으로 돌아가기")
+
+            VStack(alignment: .leading, spacing: 3) {
+                Label(element.category.displayName, systemImage: element.category.symbolName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(element.category.tint)
+
+                Text(element.title)
+                    .font(.title3.weight(.bold))
+                    .lineLimit(2)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func elementDetailContent(_ element: CourseElement) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(elementDistanceLabel(element))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(element.description)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if store.isSelectedCourseMine {
+                    HStack(spacing: 8) {
+                        Button {
+                            editingElementDraft = ElementDraft(element: element)
+                        } label: {
+                            Label("수정", systemImage: "pencil")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 28)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .accessibilityHint("요소 내용을 수정합니다")
+
+                        Button(role: .destructive) {
+                            elementPendingDeletion = element
+                        } label: {
+                            Label("삭제", systemImage: "trash")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 28)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .accessibilityHint("요소를 삭제합니다")
+                    }
+                    .disabled(store.isSavingElement)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private func elementDistanceLabel(_ element: CourseElement) -> String {
+        if element.distanceFromStartMeters >= 1_000 {
+            return String(format: "출발점에서 %.1f km", Double(element.distanceFromStartMeters) / 1_000)
+        }
+        return "출발점에서 \(element.distanceFromStartMeters) m"
     }
 
     /// Follows the finger continuously and stays wherever the drag ends,
