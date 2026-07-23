@@ -396,3 +396,16 @@
 - Debug build succeeded; zero TEMP markers remain after the scripted screenshot pass.
 - The screenshot shows the element detail inside the sheet with the full-bleed map behind it, no dimming layer, and unshifted map annotations.
 - Drag feel and the back-to-list flow continue under interactive simulator QA.
+
+## 2026-07-23 - Simulator QA round 3: element paging, highlights, full-bleed map, photo slot
+
+- Element details now page horizontally: swiping left/right in the sheet moves through the course's elements in distance order with page dots, keeping the header category and title in sync.
+- The selected course card gets a soft green row background in addition to the checkmark; the list keeps its order and the card expands in place (previous round's reorder removed).
+- The explore navigation bar is hidden so the map runs full-bleed to the top; the tab bar carries the app identity, removing the awkward empty title band.
+- Element detail shows a photo-slot placeholder box announcing the future image feature; upload and S3 stay out of scope, recorded in `SPEC.md` 3.5.
+- Copied the user's two Naver GPX files into the simulator app's Documents and enabled `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` so the Files app shows an On My iPhone > CoCo folder for GPX import testing on simulator and device alike.
+
+### Verification
+
+- Debug build succeeded; the full-bleed screenshot shows the map under the status bar with the sheet and tab bar as the only other surfaces.
+- Element swipe paging, the selection highlight, and Files-app GPX selection continue under interactive simulator QA.

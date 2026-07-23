@@ -110,9 +110,9 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("CoCo")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            // The map runs full-bleed to the top like Maps; the tab bar
+            // already anchors the app identity, so no title bar is needed.
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

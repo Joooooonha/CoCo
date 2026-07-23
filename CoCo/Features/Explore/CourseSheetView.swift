@@ -151,6 +151,23 @@ struct CourseSheetView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                // Photo slot placeholder until image upload ships with S3.
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(height: 150)
+                    .overlay {
+                        VStack(spacing: 6) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+
+                            Text("이 자리에 요소 사진이 들어갈 예정이에요")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityLabel("요소 사진 자리, 준비 중")
+
                 Text(element.description)
                     .font(.body)
                     .foregroundStyle(.secondary)
