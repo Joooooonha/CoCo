@@ -39,13 +39,21 @@ struct ElementDraft: Identifiable, Equatable {
     var description: String
 }
 
+enum RouteOrigin {
+    case mapKitPlanning
+    case importedGPX
+}
+
 @MainActor
 @Observable
 final class RoutePlannerStore {
     static let maximumWaypoints = 7
+    /// Average walking pace used when an imported GPX has no duration metadata.
+    private static let fallbackWalkingSpeedMetersPerSecond = 1.25
 
     private(set) var waypoints: [CLLocationCoordinate2D] = []
     private(set) var routeState: RoutePlanState = .idle
+    private(set) var routeOrigin: RouteOrigin = .mapKitPlanning
     var elementDrafts: [ElementDraft] = []
     var courseName = ""
     var courseSummary = ""
@@ -60,11 +68,16 @@ final class RoutePlannerStore {
     }
 
     var canAddWaypoint: Bool {
-        waypoints.count < Self.maximumWaypoints
+        routeOrigin == .mapKitPlanning && waypoints.count < Self.maximumWaypoints
     }
 
     var canContinueToDetails: Bool {
-        waypoints.count >= 2 && routeState.plannedRoute != nil
+        guard routeState.plannedRoute != nil else { return false }
+        return routeOrigin == .importedGPX || waypoints.count >= 2
+    }
+
+    var hasPlanningContent: Bool {
+        !waypoints.isEmpty || routeState.plannedRoute != nil
     }
 
     var isClosedLoop: Bool {
@@ -74,11 +87,45 @@ final class RoutePlannerStore {
     }
 
     var nextTapDescription: String {
-        switch waypoints.count {
-        case 0: "지도를 탭해 출발지를 선택하세요"
-        case Self.maximumWaypoints...: "지점은 최대 \(Self.maximumWaypoints)개까지 선택할 수 있어요"
-        default: "지도를 탭해 경유지나 도착지를 추가하세요"
+        if routeOrigin == .importedGPX {
+            return "가져온 GPX 경로를 확인하세요"
         }
+        switch waypoints.count {
+        case 0: return "지도를 탭해 출발지를 선택하세요"
+        case Self.maximumWaypoints...: return "지점은 최대 \(Self.maximumWaypoints)개까지 선택할 수 있어요"
+        default: return "지도를 탭해 경유지나 도착지를 추가하세요"
+        }
+    }
+
+    func loadImportedRoute(_ gpxRoute: GPXRoute) {
+        routeTask?.cancel()
+        waypoints.removeAll()
+        elementDrafts.removeAll()
+
+        var cumulativeMeters: [Double] = []
+        cumulativeMeters.reserveCapacity(gpxRoute.coordinates.count)
+        var runningDistance = 0.0
+        for (index, coordinate) in gpxRoute.coordinates.enumerated() {
+            if index > 0 {
+                runningDistance += MKMapPoint(gpxRoute.coordinates[index - 1])
+                    .distance(to: MKMapPoint(coordinate))
+            }
+            cumulativeMeters.append(runningDistance)
+        }
+
+        let distanceMeters = gpxRoute.distanceMeters ?? max(1, Int(runningDistance.rounded()))
+        let durationSeconds = gpxRoute.durationSeconds ?? max(
+            60,
+            Int((Double(distanceMeters) / Self.fallbackWalkingSpeedMetersPerSecond).rounded())
+        )
+
+        routeOrigin = .importedGPX
+        routeState = .ready(PlannedRoute(
+            coordinates: gpxRoute.coordinates,
+            cumulativeMeters: cumulativeMeters,
+            distanceMeters: distanceMeters,
+            durationSeconds: durationSeconds
+        ))
     }
 
     func addWaypoint(_ coordinate: CLLocationCoordinate2D) {
@@ -104,6 +151,7 @@ final class RoutePlannerStore {
         elementDrafts.removeAll()
         routeTask?.cancel()
         routeState = .idle
+        routeOrigin = .mapKitPlanning
     }
 
     func resetAll() {
@@ -162,7 +210,7 @@ final class RoutePlannerStore {
             difficulty: difficulty,
             distanceMeters: route.distanceMeters,
             estimatedDurationSeconds: route.durationSeconds,
-            routeSource: .plannedMapKit,
+            routeSource: routeOrigin == .importedGPX ? .importedGPX : .plannedMapKit,
             routePoints: routePoints,
             elements: elementDrafts.map { draft in
                 CourseCreatePayload.ElementPayload(

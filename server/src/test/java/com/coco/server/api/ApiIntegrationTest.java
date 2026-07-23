@@ -288,6 +288,33 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void importedGpxCourseIsAccepted() throws Exception {
+        String authorization = issueGuestAuthorization();
+        UUID courseId = null;
+
+        try {
+            String importedSource = validCourseJson("GPX 가져온 코스").replace(
+                    "PLANNED_MAPKIT",
+                    "IMPORTED_GPX"
+            );
+            String createdBody = mockMvc.perform(post("/api/v1/courses")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(importedSource))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.routeSource").value("IMPORTED_GPX"))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            courseId = UUID.fromString(objectMapper.readTree(createdBody).get("id").asText());
+        } finally {
+            if (courseId != null) {
+                courseRepository.deleteById(courseId);
+            }
+        }
+    }
+
+    @Test
     void ownerManagesElementsAndMinimumIsEnforced() throws Exception {
         String authorization = issueGuestAuthorization();
         UUID courseId = null;

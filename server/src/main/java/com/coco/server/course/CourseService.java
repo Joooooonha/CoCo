@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CourseService {
     private static final String DEFAULT_LOCATION_LABEL = "서울";
+    private static final Set<RouteSource> SUPPORTED_ROUTE_SOURCES =
+            Set.of(RouteSource.PLANNED_MAPKIT, RouteSource.IMPORTED_GPX);
 
     private final CourseRepository courseRepository;
     private final CourseScrapRepository courseScrapRepository;
@@ -105,7 +107,7 @@ public class CourseService {
 
     @Transactional
     public CourseResponse create(UUID userId, CourseCreateRequest request) {
-        if (request.routeSource() != RouteSource.PLANNED_MAPKIT) {
+        if (!SUPPORTED_ROUTE_SOURCES.contains(request.routeSource())) {
             throw new BadRequestException("ROUTE_SOURCE_UNSUPPORTED", "지원하지 않는 경로 생성 방식입니다.");
         }
         validateRouteSequences(request.routePoints());

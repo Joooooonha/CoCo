@@ -315,3 +315,18 @@
 - Device feedback: the register map appeared to only zoom in. Cause: every route recalculation re-fitted the camera to the route, undoing the user's own zoom-out after each waypoint tap.
 - The camera now auto-fits only on the first successful calculation per planning session (flag resets when the route is cleared); later recalculations never override user pan/zoom.
 - Verification: Debug build succeeded. Physical pinch verification on device remains with the user; simulator pinch injection needs `xcode-select` pointing at Xcode.app first.
+
+## 2026-07-23 - Phase 6.6 GPX route import
+
+- User request: use Naver Map's course-maker quality routes in CoCo. Confirmed that no public API exists for external walking-route engines (NAVER Cloud Directions 15 is documented as car-only; Kakao pedestrian routing remains partner-only), so file-based GPX import is the official path for external routes. `SPEC.md` moved GPX import into MVP scope (GPX export stays excluded) and now allows `IMPORTED_GPX` alongside `PLANNED_MAPKIT`.
+- Server: course creation accepts `IMPORTED_GPX` (no Flyway change needed — the `route_source` check constraint already included it) with a new integration test; other sources still return `ROUTE_SOURCE_UNSUPPORTED`.
+- iOS: added a `GPXParser` (Foundation `XMLParser`) that reads `trkpt` sequences plus Naver `walkCourse` distance/duration extensions, with fallback distance from coordinates and duration at 1.25 m/s walking pace; stable Korean error messages for invalid files.
+- The register tab toolbar gains a GPX import button backed by `fileImporter`; an imported route enters the existing flow as a ready route with 출발/도착 markers, an import-specific summary line, and the unchanged step-2 info/element/submit path. Clearing the route returns to tap planning.
+- HIG files loaded: same session set; `entering-data` (avoid manual entry when data exists) and `alerts` guided the import error alert.
+
+### Verification
+
+- `./gradlew test --no-daemon` passed including the new `IMPORTED_GPX` acceptance test.
+- Debug build succeeded; zero TEMP markers remain.
+- A temporary scripted run imported the user's actual Naver Map 남산 GPX (324 trkpt) from the app container: step 1 showed the imported route with `4.5 km · 약 87분 · GPX 경로` (matching Naver's 4.5 km / 1시간 26분), and submission created the course with `route_source=IMPORTED_GPX`, distance 4455 m, duration 5194 s, and all 324 route points in PostgreSQL.
+- The verification course and container file were removed and the local server stopped. Real file-picker selection needs an on-device pass.

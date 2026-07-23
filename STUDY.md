@@ -115,3 +115,10 @@
 
 - Client-side ownership hints vs. server-side authorization (UserDefaults id + 403 enforcement)
 - `confirmationDialog` for destructive actions with stable error-code mapping
+
+## 2026-07-23 - Phase 6.6
+
+### Learning keywords
+
+- `fileImporter` + security-scoped resource access for Files-app imports
+- Foundation `XMLParser` delegate parsing of GPX `trkpt` tracks
