@@ -311,6 +311,23 @@ class SocialLoginIntegrationTest {
     }
 
     @Test
+    void authorizeUrlCarriesStateAndRedirectUri() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/social/kakao/authorize-url").param("state", "state-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.redirectUri").value(KAKAO_REDIRECT_URI))
+                // The endpoint host comes from the stubbed client; what matters here
+                // is that the OAuth parameters are assembled correctly.
+                .andExpect(jsonPath("$.authorizeUrl").value(
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("response_type=code"),
+                                org.hamcrest.Matchers.containsString("state=state-123"),
+                                org.hamcrest.Matchers.containsString("scope=profile_nickname"),
+                                org.hamcrest.Matchers.containsString("redirect_uri=" + KAKAO_REDIRECT_URI)
+                        )
+                ));
+    }
+
+    @Test
     void callbackForwardsTheCodeToTheAppScheme() throws Exception {
         mockMvc.perform(get("/api/v1/auth/social/naver/callback")
                         .param("code", "abc")

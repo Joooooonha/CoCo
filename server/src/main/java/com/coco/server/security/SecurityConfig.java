@@ -31,6 +31,7 @@ public class SecurityConfig {
                         // guest is promoted, without one a new member is created.
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/social/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/social/*/callback").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/social/*/authorize-url").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated()
                 )

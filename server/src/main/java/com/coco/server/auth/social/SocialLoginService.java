@@ -17,9 +17,13 @@ import java.util.UUID;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class SocialLoginService {
+    public record AuthorizeUrl(String authorizeUrl, String redirectUri) {
+    }
+
     private final Map<AuthProvider, SocialProviderClient> clients;
     private final SocialLoginProperties properties;
     private final UserRepository userRepository;
@@ -44,6 +48,27 @@ public class SocialLoginService {
         this.userService = userService;
     }
 
+    /// Builds the provider authorization URL so the app never needs to carry
+    /// provider client identifiers.
+    public AuthorizeUrl authorizeUrl(AuthProvider provider, String state) {
+        SocialProviderClient client = requireClient(provider);
+        var credentials = requireCredentials(provider);
+
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromUriString(client.authorizationEndpoint())
+                .queryParam("response_type", "code")
+                .queryParam("client_id", credentials.clientId())
+                .queryParam("redirect_uri", credentials.redirectUri())
+                .queryParam("state", state);
+
+        // Kakao asks for consent items per request; Naver takes them from the console.
+        if (provider == AuthProvider.KAKAO) {
+            builder.queryParam("scope", "profile_nickname");
+        }
+
+        return new AuthorizeUrl(builder.build().toUriString(), credentials.redirectUri());
+    }
+
     /// Exchanges an authorization code and resolves the account it belongs to.
     /// `currentUserId` is the caller's guest account when one was presented.
     @Transactional
@@ -53,16 +78,15 @@ public class SocialLoginService {
             String redirectUri,
             UUID currentUserId
     ) {
-        if (!properties.allows(redirectUri)) {
+        SocialProviderClient client = requireClient(provider);
+        var credentials = requireCredentials(provider);
+
+        // The redirect URI must match the one used for the authorization request.
+        if (!credentials.redirectUri().equals(redirectUri)) {
             throw new BadRequestException(
                     "AUTH_REDIRECT_URI_MISMATCH",
                     "허용되지 않은 리디렉션 주소입니다."
             );
-        }
-
-        SocialProviderClient client = clients.get(provider);
-        if (client == null) {
-            throw new BadRequestException("AUTH_PROVIDER_UNSUPPORTED", "지원하지 않는 로그인 제공자입니다.");
         }
 
         SocialProfile profile = client.fetchProfile(authorizationCode, redirectUri);
@@ -74,6 +98,22 @@ public class SocialLoginService {
         }
         AuthTokenService.IssuedToken issued = authTokenService.issueFor(user);
         return new AuthResponse(userService.describe(user), issued.token(), issued.expiresAt());
+    }
+
+    private SocialProviderClient requireClient(AuthProvider provider) {
+        SocialProviderClient client = clients.get(provider);
+        if (client == null) {
+            throw new BadRequestException("AUTH_PROVIDER_UNSUPPORTED", "지원하지 않는 로그인 제공자입니다.");
+        }
+        return client;
+    }
+
+    private SocialLoginProperties.ProviderCredentials requireCredentials(AuthProvider provider) {
+        var credentials = properties.credentialsFor(provider);
+        if (credentials == null || credentials.redirectUri() == null) {
+            throw new BadRequestException("AUTH_PROVIDER_UNSUPPORTED", "지원하지 않는 로그인 제공자입니다.");
+        }
+        return credentials;
     }
 
     private UserEntity resolveAccount(AuthProvider provider, SocialProfile profile, UUID currentUserId) {

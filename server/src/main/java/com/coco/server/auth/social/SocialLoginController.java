@@ -10,6 +10,7 @@ import java.net.URI;
 import java.util.Locale;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +22,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/v1/auth/social")
+@Validated
 public class SocialLoginController {
     public record SocialLoginRequest(@NotBlank String code, @NotBlank String redirectUri) {
     }
@@ -61,6 +63,16 @@ public class SocialLoginController {
         return ResponseEntity.status(302)
                 .location(URI.create(redirect.build().toUriString()))
                 .build();
+    }
+
+    /// The app asks for the authorization URL so provider client identifiers and
+    /// redirect URIs stay configured in one place on the server.
+    @GetMapping("/{provider}/authorize-url")
+    public SocialLoginService.AuthorizeUrl authorizeUrl(
+            @PathVariable String provider,
+            @RequestParam @NotBlank String state
+    ) {
+        return socialLoginService.authorizeUrl(parseProvider(provider), state);
     }
 
     @PostMapping("/{provider}")
