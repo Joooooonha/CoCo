@@ -2,7 +2,7 @@ import Foundation
 
 enum AccountType: String, Codable, Sendable {
     case guest = "GUEST"
-    case apple = "APPLE"
+    case member = "MEMBER"
 }
 
 enum CourseDifficulty: String, Codable, CaseIterable, Sendable {

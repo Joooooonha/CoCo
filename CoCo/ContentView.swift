@@ -34,11 +34,20 @@ struct ContentView: View {
             }
 
             Tab("보관함", systemImage: "bookmark.fill", value: MainTab.library) {
-                LibraryView { course in
-                    store.selectedElement = nil
-                    store.selectedCourseID = course.id
-                    selectedTab = .explore
-                }
+                LibraryView(
+                    onOpenCourse: { course in
+                        store.selectedElement = nil
+                        store.selectedCourseID = course.id
+                        selectedTab = .explore
+                    },
+                    onSessionReset: {
+                        // Scrap and reaction state belongs to the account, so the
+                        // explore list is reloaded when the identity changes.
+                        store.selectedElement = nil
+                        store.selectedCourseID = nil
+                        Task { await store.loadCourses(force: true) }
+                    }
+                )
             }
         }
         .task {

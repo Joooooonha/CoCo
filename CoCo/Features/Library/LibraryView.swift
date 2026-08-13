@@ -2,14 +2,20 @@ import SwiftUI
 
 struct LibraryView: View {
     var onOpenCourse: ((Course) -> Void)?
+    var onSessionReset: (() -> Void)?
     @State private var store: LibraryStore
-    @State private var isEditingName = false
-    @State private var nameDraft = ""
+    @State private var accountStore = AccountStore()
+    @State private var showsProfile = false
     @State private var coursePendingDeletion: Course?
 
-    init(store: LibraryStore = LibraryStore(), onOpenCourse: ((Course) -> Void)? = nil) {
+    init(
+        store: LibraryStore = LibraryStore(),
+        onOpenCourse: ((Course) -> Void)? = nil,
+        onSessionReset: (() -> Void)? = nil
+    ) {
         _store = State(initialValue: store)
         self.onOpenCourse = onOpenCourse
+        self.onSessionReset = onSessionReset
     }
 
     var body: some View {
@@ -23,27 +29,30 @@ struct LibraryView: View {
 
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            nameDraft = store.profileName ?? ""
-                            isEditingName = true
+                            showsProfile = true
                         } label: {
-                            Label("내 이름 바꾸기", systemImage: "person.crop.circle")
+                            Label("내 계정", systemImage: "person.crop.circle")
                         }
-                        .accessibilityHint("코스에 표시되는 내 이름을 바꿉니다")
+                        .accessibilityHint("로그인과 이름, 계정 삭제를 관리합니다")
                     }
                 }
-                .alert("내 이름 바꾸기", isPresented: $isEditingName) {
-                    TextField("표시 이름 (1~20자)", text: $nameDraft)
-
-                    Button("저장") {
-                        Task {
-                            await store.updateDisplayName(nameDraft)
+                .sheet(isPresented: $showsProfile) {
+                    ProfileView(
+                        store: accountStore,
+                        currentName: store.profileName,
+                        onRename: { newName in
+                            await store.updateDisplayName(newName)
+                            await accountStore.load()
+                        },
+                        onSessionReset: {
+                            // Logging in, out, or deleting swaps the identity, so the
+                            // library has to be rebuilt for the new session.
+                            Task {
+                                await store.load(force: true)
+                                onSessionReset?()
+                            }
                         }
-                    }
-
-                    Button("취소", role: .cancel) {
-                    }
-                } message: {
-                    Text(currentNameMessage)
+                    )
                 }
                 .alert(
                     "이름을 바꾸지 못했어요",
@@ -66,13 +75,6 @@ struct LibraryView: View {
                 await store.load(force: true)
             }
         }
-    }
-
-    private var currentNameMessage: String {
-        if let profileName = store.profileName {
-            return "지금은 \(profileName)(으)로 표시돼요. 새 코스와 목록에 함께 반영됩니다."
-        }
-        return "코스에 표시되는 이름을 설정해요."
     }
 
     @ViewBuilder

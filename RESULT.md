@@ -447,3 +447,37 @@
 - 5장에 `AccountType`을 `GUEST`/`MEMBER`로 재정의하고 `linkedProviders`를 추가했다. `external_identities` 신규 테이블과 `account_type` 제약 교체를 마이그레이션 목록에 넣었다.
 - 7.3에 로그인·로그아웃·계정 삭제 API 계약과 오류 코드를 정의했다.
 - 확인 시나리오 V2-S14~S18(게스트 승계, 재설치 복구, `state` 불일치, 기존 연결 계정, 삭제 후 재로그인)을 추가했다.
+
+## 2026-08-13 - Phase 8 완료: 소셜 로그인과 프로필 화면
+
+### 서버
+
+- Flyway V3: `users.account_type`을 `GUEST`/`MEMBER`로 교체하고 `external_identities` 테이블 추가. 실제 로컬 DB에 적용해 8개 테이블에 마이그레이션이 반영됨을 확인.
+- `SocialProviderClient` 인터페이스와 Naver/Kakao 구현체. `RestClient`에 연결·읽기 타임아웃 5초를 명시적으로 설정.
+- `SocialLoginService`가 계정 결정 3규칙(이미 연결됨 → 그 계정 / 게스트 승격 / 신규 생성)을 하나의 트랜잭션에서 처리. 게스트 승격 시 표시 이름과 소유 코스가 그대로 유지됨을 테스트로 확인.
+- 인가 URL 발급을 서버 책임으로 옮겨 앱 번들에 provider client_id를 넣지 않음.
+- `AuthTokenService`로 게스트·소셜 로그인의 토큰 발급/인증/폐기를 통합. `auth`와 `user` 패키지에 중복돼 있던 `UserResponse`를 하나로 정리.
+- 계정 삭제: `courses.owner_id ON DELETE RESTRICT` 때문에 코스를 먼저 명시적으로 지운 뒤 사용자를 삭제하는 순서를 트랜잭션으로 보장.
+- 통합 테스트 10개 신규(게스트 승계, 신규 회원 생성, 재로그인, 이미 연결된 계정 보호, 로그아웃 범위, 계정 삭제 후 재가입, 프로바이더/리다이렉트 오류, 인가 URL 조립, 콜백 전달). 실제 프로바이더 없이 `SocialProviderClient`를 빈 이름으로 교체하는 스텁으로 검증.
+- 서버 테스트 27개 전체 통과.
+
+### iOS
+
+- `User`에 `linkedProviders` 추가, 이전 형태의 응답도 디코딩되도록 커스텀 이니셜라이저 사용.
+- `AccountType.apple`을 `member`로 교체.
+- `SocialLoginSession`이 `ASWebAuthenticationSession`으로 인가 단계를 수행하고 `state`를 검증. `prefersEphemeralWebBrowserSession`으로 매번 로그인 화면을 명시적으로 띄움.
+- `AccountStore`가 로그인/로그아웃/계정 삭제와 세션 초기화 신호를 관리.
+- `ProfileView`: 게스트 상태 안내, 제공자별 로그인 버튼, 표시 이름 변경, 로그인 상태에서만 보이는 로그아웃, 계정 삭제 확인 다이얼로그.
+- `Info.plist`에 `coco://` URL 스킴 등록.
+- 로그인·로그아웃·계정 삭제 후 탐색·보관함이 새 세션으로 갱신되도록 `onSessionReset` 콜백 연결.
+- iOS 유닛 테스트 4개 신규(디코딩, 하위 호환, provider 경로/표시명). 전체 23개 통과.
+
+### 검증
+
+- 서버: 로컬 PostgreSQL에 마이그레이션 적용 확인, `./gradlew test` 27개 통과.
+- iOS: `xcodebuild test` 23개 통과, 시뮬레이터에서 보관함 → 프로필 화면 진입, 게스트 안내 문구·로그인 버튼·이름 변경·계정 삭제 섹션 렌더링 확인.
+- 실제 Naver/Kakao 로그인 종단 검증은 콘솔에 앱 등록(Redirect URI, 클라이언트 자격 증명)이 끝난 뒤 진행한다.
+
+### SPEC과 달라진 부분
+
+- 없음. 이번 세션에서 SPEC을 먼저 개정한 뒤 그대로 구현했다.

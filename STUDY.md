@@ -136,3 +136,10 @@
 
 - `ViewThatFits` as a Dynamic Type overflow fallback
 - `dynamicTypeSize.isAccessibilitySize` for hiding redundant decorations
+
+## 2026-08-13 - Phase 8
+
+### 학습 키워드
+
+- OAuth 2.0 Authorization Code Grant와 CSRF `state` 파라미터
+- `ASWebAuthenticationSession`과 커스텀 URL 스킴 콜백

@@ -129,6 +129,86 @@ struct CourseAPIClient {
         }
     }
 
+    // MARK: - Account
+
+    func fetchCurrentUser() async throws -> User {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/me"))
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let user: User = try await send(request)
+            CurrentUserID.value = user.id
+            CurrentUserName.value = user.displayName
+            return user
+        }
+    }
+
+    /// Asks the server for the provider authorization URL so no provider client
+    /// identifier has to ship inside the app.
+    func fetchAuthorizeURL(provider: AuthProvider, state: String) async throws -> AuthorizeURLResponse {
+        var components = URLComponents(
+            url: endpoint("api/v1/auth/social/\(provider.pathValue)/authorize-url"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "state", value: state)]
+        guard let url = components?.url else {
+            throw APIClientError.invalidResponse
+        }
+        return try await send(URLRequest(url: url))
+    }
+
+    /// Exchanges the authorization code for a CoCo token. The current guest token
+    /// is sent along so the server can carry the guest's data into the account.
+    func completeSocialLogin(
+        provider: AuthProvider,
+        code: String,
+        redirectURI: String
+    ) async throws -> User {
+        var request = URLRequest(url: endpoint("api/v1/auth/social/\(provider.pathValue)"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let guestToken = try? tokenStore.read() {
+            request.setValue("Bearer \(guestToken)", forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = try JSONEncoder().encode(
+            SocialLoginPayload(code: code, redirectUri: redirectURI)
+        )
+
+        let response: AuthResponse = try await send(request)
+        try tokenStore.save(response.token)
+        CurrentUserID.value = response.user.id
+        CurrentUserName.value = response.user.displayName
+        return response.user
+    }
+
+    /// Revokes the current token and drops local state so the next call starts
+    /// a fresh guest session.
+    func logout() async throws {
+        if let token = try? tokenStore.read() {
+            var request = URLRequest(url: endpoint("api/v1/auth/logout"))
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            // A rejected token is already unusable, so treat failure as success.
+            try? await sendExpectingSuccess(request)
+        }
+        clearLocalSession()
+    }
+
+    func deleteAccount() async throws {
+        try await withAuthorization { token in
+            var request = URLRequest(url: endpoint("api/v1/me"))
+            request.httpMethod = "DELETE"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await sendExpectingSuccess(request)
+        }
+        clearLocalSession()
+    }
+
+    private func clearLocalSession() {
+        try? tokenStore.delete()
+        CurrentUserID.value = nil
+        CurrentUserName.value = nil
+    }
+
     private func withAuthorization<Value>(
         _ operation: (String) async throws -> Value
     ) async throws -> Value {
@@ -221,6 +301,22 @@ struct CourseCreatePayload: Encodable, Sendable {
     let routeSource: RouteSource
     let routePoints: [RoutePointPayload]
     let elements: [ElementPayload]
+}
+
+struct AuthorizeURLResponse: Decodable, Sendable {
+    let authorizeUrl: String
+    let redirectUri: String
+}
+
+private struct SocialLoginPayload: Encodable {
+    let code: String
+    let redirectUri: String
+}
+
+/// Returned by guest issuance and social login alike.
+private struct AuthResponse: Decodable {
+    let user: User
+    let token: String
 }
 
 private struct GuestAuthResponse: Decodable {
