@@ -7,8 +7,8 @@
 | 항목 | 기준 |
 |---|---|
 | 제품명 | CoCo |
-| 제품 버전 | MVP v0.1 구현 중 |
-| 다음 버전 | V2 v0.2: TestFlight, Sign in with Apple, 공개 API와 운영 자동화 |
+| 제품 버전 | MVP v0.1 기능 완료, 품질 강화 중 |
+| 다음 버전 | V2 v0.2: 계정, 정밀 경로 생성, 요소 사진, UI 완성도, TestFlight |
 | 디자인 원본 | [Apple AI Playground](https://www.figma.com/make/XyGem2zz4Yhecbn145qW6q/Apple-AI-Playground?t=Rb5BipBGwPT9EY0D-1) |
 | 디자인 가이드 | `HIGAgentSkills-main`의 Apple HIG OS 27 업데이트판 |
 | iOS 최소 버전 | iOS 26.2, 현재 Xcode 프로젝트 설정과 일치 |
@@ -134,6 +134,38 @@ MVP의 코스는 현재 위치를 기록해서 만드는 방식이 아니라, �
 
 네이버 지도 코스 만들기 같은 외부 도보 경로 도구는 공개 API를 제공하지 않으므로, 파일 기반 가져오기가 외부 경로를 사용하는 공식 경로다. GPX 내보내기는 여전히 범위 밖이다.
 
+#### 경로 계산 공급자 제약 (조사 결과)
+
+V2 경로 기능의 설계 전제다.
+
+- `MKDirections`는 경로 선택 기준을 조절하는 API를 제공하지 않는다. 최단 거리와 최소 시간을 고르는 옵션이 없고, 도보에서 회피 조건도 지정할 수 없다.
+- `MKDirections.Request`는 출발지와 도착지만 받는다. 중간 경유지를 한 번에 넘길 수 없어 CoCo는 인접한 두 지점씩 나눠 요청한다. 즉 지점 N개는 요청 N-1회가 된다.
+- Apple은 도보 경로의 최적화 기준을 문서로 공개하지 않는다. 따라서 "직진을 원했는데 다른 길이 선택되는" 상황을 API 옵션으로 교정할 수 없다.
+- 결론: 계산된 경로를 사용자 의도에 맞추는 유일한 수단은 **지점을 더 촘촘히 찍어 경로를 좁히는 것**이다. 이것이 V2에서 지점 상한을 올리는 근거다.
+- 지점 7개 상한은 외부 API 제약이 아니라 MVP에서 이 문서가 정한 값이다.
+
+#### V2 정밀 경로 계획
+
+지점 상한을 25개(출발 1 + 경유 23 + 도착 1)로 올려 경로를 의도에 가깝게 좁힌다.
+
+- 요청 수가 최대 24회로 늘어나므로 구간 계산은 순차로 수행하고, 실패한 구간만 지수 백오프로 재시도한다.
+- 계산 중에는 진행 상태와 남은 구간 수를 표시하고 취소할 수 있어야 한다.
+- 일부 구간이 끝내 실패하면 전체를 버리지 않고 실패 구간을 표시해 사용자가 해당 지점을 옮기거나 지울 수 있게 한다.
+- 상한을 더 올리기 전에 실제 요청 제한(throttling) 발생 여부를 측정한다. 측정 없이 값을 키우지 않는다.
+
+#### V2 자유 그리기 경로
+
+지도 위에 손가락으로 선을 직접 그려 경로를 만든다. 지도에 표시되지 않는 숲길과 지름길을 표현하기 위한 수단이다.
+
+1. 등록 탭에서 자유 그리기 모드를 명시적으로 켠다. 기본 모드는 지점 계획이다.
+2. 드래그 궤적을 화면 좌표 기준 일정 간격으로 샘플링해 좌표 시퀀스로 만든다.
+3. 도보 경로 계산과 도로 스냅을 수행하지 않는다. 그린 선이 곧 경로다.
+4. 거리는 좌표 간 거리의 합으로 계산하고, 예상 시간은 GPX 가져오기와 같은 보행 속도 기준으로 추정한다.
+5. 저장 직전 미리보기에서 위성 지도로 전환해 강, 건물, 차도 위를 지나지 않는지 확인할 수 있어야 한다.
+6. 이 코스의 `routeSource`는 `DRAWN_FREEHAND`로 저장한다.
+
+자유 그리기는 보정이 없으므로 실제로 달릴 수 없는 경로가 만들어질 수 있다. 이를 막기 위해 도로에 스냅하면 기능의 목적 자체가 사라지므로, 차단하는 대신 **경로 출처를 드러내는 방식**을 택한다. 코스 카드와 상세에 직접 그린 경로임을 배지로 표시해 다른 러너가 스스로 판단하게 한다. 노면이나 통행 조건에 대한 구체적 주의는 `CAUTION` 요소로 남긴다.
+
 ### 3.5 코스 요소
 
 | API 값 | 의미 | 예시 |
@@ -152,6 +184,20 @@ MVP의 코스는 현재 위치를 기록해서 만드는 방식이 아니라, �
 
 MVP에서는 코스 작성자만 해당 코스의 요소를 등록·수정·삭제할 수 있다. 이미지 필드와 업로드 UI는 포함하지 않는다. 다만 요소 상세에는 후속 이미지 기능을 예고하는 사진 자리 표시(placeholder)를 데모용으로 보여준다.
 
+#### V2 요소 사진
+
+요소마다 사진을 첨부해 경관과 주의 구간을 눈으로 확인할 수 있게 한다.
+
+- 요소 1개당 사진 1장을 등록한다. 여러 장과 영상은 이 단계 범위가 아니다.
+- 원본을 그대로 올리지 않는다. 업로드 전 앱에서 긴 변 기준으로 축소하고 재인코딩해 상한 이하로 만든다.
+- 허용 형식은 JPEG와 HEIC이며, 업로드 본문 상한은 5 MiB다.
+- 업로드는 서버가 발급한 사전 서명 URL로 저장소에 직접 전송한다. 이미지 바이트는 Spring을 통과하지 않는다.
+- 등록 흐름은 사진 없이도 완료할 수 있다. 사진은 선택 항목이다.
+- 요소나 코스를 삭제하면 연결된 사진 객체도 삭제한다.
+- 사진에는 촬영 위치와 시각 같은 메타데이터가 남을 수 있으므로 업로드 전 EXIF를 제거한다.
+
+저장소 구성은 6.6을 따른다.
+
 ### 3.6 V2 확정 범위
 
 V2는 MVP 기능을 TestFlight 테스터에게 배포하고 공개 인터넷 API를 안전하게 운영할 수 있는 상태를 목표로 한다.
@@ -166,6 +212,13 @@ V2는 MVP 기능을 TestFlight 테스터에게 배포하고 공개 인터넷 API
 | V2-F6 | 사설 운영 경로 | Tailscale은 개발자 SSH와 CI/CD의 Mac mini 접근에만 사용한다. |
 | V2-F7 | 서버 자원 보호 | Edge와 애플리케이션 요청 제한, Tomcat 스레드·연결 상한, HikariCP 상한, 요청 크기 제한을 둔다. |
 | V2-F8 | CI/CD | PR 검증, GHCR 이미지 발행, 승인된 Mac mini 배포와 헬스 체크를 자동화한다. |
+| V2-F9 | 정밀 경로 계획 | 지점 상한을 25개로 올리고 순차 계산, 재시도, 구간 실패 표시를 제공한다. |
+| V2-F10 | 자유 그리기 경로 | 드래그로 그린 선을 보정 없이 경로로 저장하고 출처를 배지로 표시한다. |
+| V2-F11 | 요소 사진 | 요소당 사진 1장을 사전 서명 URL로 업로드하고 상세와 목록에서 조회한다. |
+| V2-F12 | 프로필과 계정 화면 | 로그인 상태, 표시 이름, 로그아웃과 계정 삭제를 한 화면에서 관리한다. |
+| V2-F13 | UI 완성도 | Figma 대비 시각 보정과 접근성 기준을 화면별 점검표로 관리한다. |
+
+V2-F9부터 V2-F13은 MVP 기능의 완성도를 올리는 항목이고, V2-F1의 TestFlight 배포보다 먼저 마무리한다. 새 기능(GPS 기록, 크루, 내비게이션, 날씨 표현)은 `BACKLOG.md`에 있으며 이 표로 옮기기 전까지 구현하지 않는다.
 
 V2의 첫 소셜 로그인 제공자는 Sign in with Apple이다. Google 또는 Kakao 로그인은 제공자 선택, 개인정보 처리와 계정 연결 정책을 별도로 확정한 뒤 추가한다. TestFlight는 Apple Developer 앱이 아니라 테스터의 TestFlight 앱을 통해 설치한다.
 
@@ -224,7 +277,8 @@ RoutePoint
 
 CourseElement
   id, courseId, category, latitude, longitude,
-  distanceFromStartMeters, title, description
+  distanceFromStartMeters, title, description,
+  photoURL            // V2, 없으면 nil
 
 CourseReaction
   courseId, userId, type
@@ -235,7 +289,9 @@ CourseReaction
 - `Difficulty`: `EASY`, `MODERATE`, `HARD`
 - `ElementCategory`: `VIEW`, `CAUTION`, `FACILITY`
 - `ReactionType`: `LIKE`, `HARD`, `SCENIC`
-- `RouteSource`: `PLANNED_MAPKIT`, `IMPORTED_GPX`; 후속으로 `RECORDED_GPS`, `PLANNED_KAKAO`
+- `RouteSource`: `PLANNED_MAPKIT`, `IMPORTED_GPX`, `DRAWN_FREEHAND`(V2); 후속으로 `RECORDED_GPS`, `PLANNED_KAKAO`
+
+`photoURL`은 서버가 만들어 주는 조회용 절대 URL이다. 저장소 키를 클라이언트에 노출하지 않는다.
 
 모델은 `Codable`, `Identifiable`, 값 타입을 기본으로 한다. 공용 모델에는 `CLLocationCoordinate2D`를 저장하지 않고, MapKit 경계에서 자체 좌표 타입과 변환한다.
 
@@ -253,6 +309,16 @@ CourseReaction
 | `course_reactions` | 사용자·코스·반응 종류의 유일한 관계 |
 
 `course_scraps`는 `(user_id, course_id)`, `course_reactions`는 `(user_id, course_id, reaction_type)`에 유일 제약을 둔다. 코스와 요소 삭제 시 연관 데이터 처리 방식은 마이그레이션에 명시한다.
+
+V2에서 추가되는 변경:
+
+| 대상 | 변경 |
+|---|---|
+| `courses.route_source` | 체크 제약에 `DRAWN_FREEHAND` 추가 |
+| `course_elements.photo_object_key` | 저장소 객체 키. 사진이 없으면 `NULL` |
+| `course_elements.photo_uploaded_at` | 업로드 확정 시각. 확정 전에는 `NULL` |
+
+스키마 변경 전에 정기 백업을 반드시 활성화한다. `DEPLOYMENT.md` 10장에서 백업을 "다음 Flyway 변경 전"까지 유예해 두었으므로, 이 마이그레이션이 그 기한이다.
 
 ---
 
@@ -326,6 +392,28 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - [Kakao Mobility 길찾기 API](https://developers.kakaomobility.com/product/naviapi.html)
 - [Kakao Mobility 도보 길찾기 API](https://developers.kakaomobility.com/affiliate/walking/directions.html)
 
+### 6.6 V2 객체 저장소
+
+사진과 백업은 성격이 달라 저장소를 나눈다. 기준은 조회 빈도와 외부 전송량이다.
+
+| 용도 | 저장소 | 근거 |
+|---|---|---|
+| 사용자 요소 사진 | Cloudflare R2 | 앱에서 반복 조회되어 외부 전송량이 크다. R2는 egress 요금이 없고 이미 사용 중인 Cloudflare 계정을 그대로 쓴다. |
+| DB 덤프와 원본 아카이브 | AWS S3 | 거의 읽지 않아 전송 비용이 작다. 저비용 스토리지 클래스와 버전 관리로 오프사이트 백업 요건을 충족한다. |
+
+- 두 저장소 모두 S3 호환 API를 사용하므로 서버는 엔드포인트와 자격 증명만 다른 하나의 클라이언트 추상화로 다룬다.
+- 버킷은 공개하지 않는다. 업로드는 사전 서명 PUT URL, 조회는 사전 서명 GET URL 또는 Cloudflare 커스텀 도메인 경유로 제공한다.
+- 사전 서명 URL의 유효 시간은 업로드 5분, 조회 1시간을 기본으로 한다.
+- 객체 키는 사용자 식별자를 그대로 노출하지 않고 `courses/{courseId}/elements/{elementId}/{uuid}.jpg` 형태를 사용한다.
+- 업로드 확정 전 객체와 삭제된 요소의 잔여 객체는 수명 주기 규칙으로 정리한다.
+- 자격 증명은 환경 변수로 주입하고 저장소에 커밋하지 않는다. 저장소에는 키 이름만 담은 예시 파일을 둔다.
+- 두 저장소를 함께 쓰면 설정과 장애 지점이 늘어난다. 사진 파이프라인이 안정될 때까지 S3 쪽은 백업 용도로만 사용하고 애플리케이션 읽기 경로에 넣지 않는다.
+
+참고:
+
+- [Cloudflare R2](https://developers.cloudflare.com/r2/)
+- [Amazon S3 presigned URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+
 ---
 
 ## 7. API 초안
@@ -352,6 +440,9 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 | `POST` | `/api/v1/courses/{courseId}/elements` | 작성자의 요소 등록 |
 | `PATCH` | `/api/v1/courses/{courseId}/elements/{elementId}` | 작성자의 요소 수정 |
 | `DELETE` | `/api/v1/courses/{courseId}/elements/{elementId}` | 작성자의 요소 삭제 |
+| `POST` | `/api/v1/courses/{courseId}/elements/{elementId}/photo/upload-url` | V2 사진 업로드용 사전 서명 URL 발급 |
+| `PUT` | `/api/v1/courses/{courseId}/elements/{elementId}/photo` | V2 업로드 완료 확정 |
+| `DELETE` | `/api/v1/courses/{courseId}/elements/{elementId}/photo` | V2 사진 삭제 |
 | `GET` | `/actuator/health` | 서버 상태 확인 |
 
 오류 응답은 상태 코드, 안정적인 오류 코드, 사용자에게 직접 노출하지 않을 기술 메시지를 구분한다. API 계약은 서버 구현 전에 요청·응답 예시로 확정한다.
@@ -425,6 +516,28 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - 요소 수정·삭제는 코스 작성자만 가능하며 위반 시 `403 COURSE_OWNER_ONLY`를 반환한다.
 - 코스의 마지막 남은 요소는 삭제할 수 없으며 `409 ELEMENT_MINIMUM_REQUIRED`를 반환한다.
 
+### 7.3 V2 사진 업로드 계약
+
+사진 바이트는 Spring을 통과하지 않는다. 서버는 권한을 검증하고 사전 서명 URL만 발급한다.
+
+1. 클라이언트가 축소·재인코딩·EXIF 제거를 마친 뒤 업로드 URL을 요청한다. 요청 본문에는 `contentType`과 `contentLength`를 담는다.
+2. 서버는 코스 작성자 여부를 확인하고 객체 키를 정한 뒤 유효 시간 5분의 PUT URL을 반환한다.
+3. 클라이언트가 저장소에 직접 업로드한다.
+4. 클라이언트가 확정 요청을 보내면 서버가 객체 존재와 크기를 확인하고 `photo_object_key`와 `photo_uploaded_at`을 기록한다.
+
+- 허용 `contentType`은 `image/jpeg`와 `image/heic`이며 그 외에는 `400 PHOTO_CONTENT_TYPE_UNSUPPORTED`를 반환한다.
+- `contentLength`가 5 MiB를 넘으면 `413 PHOTO_TOO_LARGE`를 반환한다.
+- 작성자가 아니면 `403 COURSE_OWNER_ONLY`를 반환한다.
+- 확정 시 객체가 없으면 `409 PHOTO_NOT_UPLOADED`를 반환한다.
+- 확정되지 않은 업로드는 저장소 수명 주기 규칙으로 24시간 뒤 정리한다.
+- 조회 응답의 `photoURL`은 사전 서명 GET URL 또는 커스텀 도메인 URL이며, 저장소 키는 응답에 포함하지 않는다.
+
+### 7.4 V2 경로 계약 변경
+
+- `routeSource` 허용 값에 `DRAWN_FREEHAND`를 추가한다.
+- `DRAWN_FREEHAND` 코스는 도보 경로 계산을 거치지 않으므로 서버가 경로 형태를 검증하지 않는다. 좌표 범위, 지점 수 상한, 순서 연속성 검증은 그대로 적용한다.
+- 경로 지점 2,000개 상한은 계획·가져오기·자유 그리기 모두에 동일하게 적용한다. 자유 그리기에서 샘플이 상한을 넘으면 클라이언트가 업로드 전에 다운샘플링한다.
+
 ---
 
 ## 8. 개발 계획
@@ -491,12 +604,34 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - 다양한 iPhone 크기, 네트워크 실패와 재실행 검증
 - 핵심 시나리오 회귀 테스트
 
-### Phase 8. V2 계정과 베타 배포
+### Phase 8. V2 계정
 
+- 정기 백업 활성화 (다음 Flyway 변경의 선행 조건)
 - Sign in with Apple과 서버 토큰 검증
 - 게스트 계정 승계, 로그아웃과 앱 내 계정 삭제
-- Tailscale 기반 승인형 Mac mini CD와 헬스 체크·롤백 자동화
+- 프로필과 계정 관리 화면
+
+### Phase 9. V2 정밀 경로 생성
+
+- 지점 상한 25개 확대와 순차 계산·재시도·구간 실패 표시
+- 자유 그리기 모드와 위성 지도 확인
+- `DRAWN_FREEHAND` 마이그레이션과 서버 검증, 출처 배지
+- 경로 요청 제한 발생 여부 측정
+
+### Phase 10. V2 요소 사진
+
+- R2 버킷과 사전 서명 URL 발급·확정·삭제 API
+- 클라이언트 축소·재인코딩·EXIF 제거와 업로드 흐름
+- 요소 상세와 편집 화면의 사진 표시
+- S3 오프사이트 백업 연결과 수명 주기 규칙
+
+### Phase 11. V2 UI 완성도와 베타 배포
+
+- 화면별 Figma 대비 시각 보정 점검표
+- Dynamic Type, VoiceOver, 대비와 터치 영역 재점검
 - TestFlight 내부 테스트 후 외부 테스트
+
+Phase 8부터 11은 기존 기능의 완성도를 올리는 단계다. `BACKLOG.md`의 새 기능은 이 단계들이 끝난 뒤 범위를 다시 확정한다.
 
 ---
 
@@ -521,6 +656,14 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 | V2-S3 | 256 KiB보다 큰 JSON 요청 | 서버가 본문을 처리하지 않고 `413`으로 거부한다. |
 | V2-S4 | API 컨테이너에 과도한 연결 요청 | 설정한 스레드·연결·DB 풀 상한을 넘지 않고 빠르게 실패한다. |
 | V2-S5 | TestFlight 초대 수락 | 테스터가 TestFlight에서 CoCo를 설치하고 업데이트한다. |
+| V2-S6 | 지점 20개 이상으로 경로 계획 | 모든 구간이 계산되고 진행 상태와 취소가 동작하며, 실패 구간은 표시되어 수정할 수 있다. |
+| V2-S7 | 자유 그리기로 숲길 경로 작성 | 도로 스냅 없이 그린 선이 그대로 저장되고 위성 지도로 확인할 수 있다. |
+| V2-S8 | 자유 그리기 코스를 탐색에서 조회 | 직접 그린 경로임을 알리는 배지가 카드와 상세에 표시된다. |
+| V2-S9 | 요소에 사진 등록 | 축소된 이미지가 업로드되고 상세에서 조회되며 EXIF 위치 정보가 남지 않는다. |
+| V2-S10 | 5 MiB를 넘는 사진 업로드 시도 | 서버가 URL을 발급하지 않고 `413`으로 거부한다. |
+| V2-S11 | 다른 사용자 코스의 요소에 사진 업로드 시도 | 서버가 `403`으로 거부한다. |
+| V2-S12 | 사진이 있는 요소를 삭제 | 요소와 저장소 객체가 함께 삭제된다. |
+| V2-S13 | 로그아웃 후 재로그인 | 같은 Apple 계정의 스크랩, 반응과 작성 코스가 유지된다. |
 
 ---
 
@@ -559,6 +702,13 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - [ ] Cloudflare Tunnel 외에 Mac mini의 공개 인바운드 포트가 없다.
 - [ ] 서버와 컨테이너 자원 상한이 설정되고 초과 요청 테스트가 통과한다.
 - [ ] `main`의 승인된 이미지가 GHCR에서 Mac mini로 배포되고 롤백할 수 있다.
+- [ ] 정기 백업이 활성화되어 있고 스키마 변경 전에 복구를 검증했다.
+- [ ] 지점 25개까지 경로를 계획할 수 있고 구간 실패를 사용자가 복구할 수 있다.
+- [ ] 자유 그리기 경로가 보정 없이 저장되고 출처 배지로 구분된다.
+- [ ] 요소 사진이 업로드·조회·삭제되고 저장소에 잔여 객체가 남지 않는다.
+- [ ] 사진에서 위치 메타데이터가 제거된다.
+- [ ] 저장소 자격 증명과 버킷 이름이 저장소에 커밋되지 않는다.
+- [ ] 계정 화면에서 로그인 상태 확인, 로그아웃과 계정 삭제를 할 수 있다.
 
 ---
 
@@ -570,14 +720,19 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - 현재 위치와 위치 권한
 - 달리기 중 GPS 기록과 백그라운드 위치 수집
 - GPX 내보내기
-- 이미지 업로드, S3와 영상
+- 이미지 업로드 (V2-F11로 이동)
+- 영상 업로드와 재생
+- 요소당 여러 장의 사진
 - 댓글, 팔로우, 알림과 소셜 피드
+- 러닝 크루 생성과 모집
+- 코스 따라가기 내비게이션과 음성 안내
+- 날씨 상태의 동적 지도 표현
 - 공개 App Store 배포
 - Kakao 지도 네이티브 SDK
 - 제휴 전 Kakao 도보 길찾기 API
 - 코스 추천 알고리즘과 관리자 운영 도구
 
-후속 기능을 구현하려면 먼저 이 문서에서 MVP 또는 다음 버전의 확정 범위로 옮긴다.
+후속 기능을 구현하려면 먼저 이 문서에서 MVP 또는 다음 버전의 확정 범위로 옮긴다. 후보와 배경은 `BACKLOG.md`에 정리한다.
 
 ---
 
@@ -586,6 +741,10 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - 코스 등록과 보관함의 최종 화면 구성은 Figma와 HIG 검토 후 확정한다.
 - 공개 배포를 고려할 때 MapKit 경로 데이터의 저장·재사용 조건을 다시 확인한다.
 - Kakao 도보 길찾기 제휴 가능 여부를 확인한 뒤 경로 공급자 변경을 결정한다.
-- S3는 이미지가 다시 범위에 포함될 때 비용, 인증과 삭제 정책을 함께 결정한다.
 - Google 또는 Kakao 로그인을 V2 이후에 추가할지와 계정 연결 우선순위를 결정한다.
 - TestFlight 사용 전 Apple Developer Program 가입 상태와 App Store Connect 역할을 확인한다.
+- 지점 25개 상한을 더 올릴지는 실제 요청 제한 측정 결과를 보고 결정한다.
+- 자유 그리기 경로에 사용자 신고나 검증 장치가 필요한지는 실제 사용 사례를 보고 판단한다.
+- 사진 조회를 사전 서명 GET URL로 할지 Cloudflare 커스텀 도메인으로 할지는 캐시 효율을 확인한 뒤 정한다.
+- 사진 저장 용량이 늘어날 때 사용자당 상한과 보존 기간을 정한다.
+- 영상 도입 시 용량 상한, 인코딩과 재생 방식을 별도로 확정한다.
