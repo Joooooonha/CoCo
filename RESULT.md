@@ -481,3 +481,11 @@
 ### SPEC과 달라진 부분
 
 - 없음. 이번 세션에서 SPEC을 먼저 개정한 뒤 그대로 구현했다.
+
+## 2026-08-13 - Naver·Kakao 콘솔 등록과 운영 배포
+
+- 사용자가 Naver·Kakao 개발자 콘솔에 앱을 등록했다. Naver 콘솔의 "iOS" 환경(다운로드 URL, URL Scheme)은 네이버 네이티브 SDK 전용이라 CoCo의 `ASWebAuthenticationSession` 기반 웹 OAuth 흐름에는 불필요함을 확인하고 Mobile Web 환경(서비스 URL, Callback URL)만 등록했다.
+- Mac mini의 `.env.production`에 4개 자격 증명과 `COCO_SOCIAL_*` 값을 추가했다.
+- 배포 과정에서 Mac mini의 `compose.production.yaml`이 이전 버전이라 소셜 로그인 환경변수 전달 줄이 없어 자격 증명이 컨테이너에 전달되지 않는 문제를 발견했다. Mac mini는 GHCR 이미지만 받고 compose 파일은 자동 동기화되지 않는 구조이므로, 저장소의 최신 `compose.production.yaml`을 직접 전송해 해결했다.
+- 값을 노출하지 않고 운영 API로 검증: 두 제공자의 `authorize-url` 응답에 실제 길이의 `client_id`가 포함되고 `redirectUri`가 운영 주소(`https://api.cocorun.site/...`)로 정확히 나옴을 확인했다. 콜백 엔드포인트가 `coco://oauth/callback`으로 정확히 리디렉션함을 확인했다. Actuator는 `UP`.
+- 실제 사용자 로그인을 통한 종단 검증(제공자 로그인 화면 → 앱 복귀 → 토큰 발급)은 실기기 또는 시뮬레이터에서 다음 단계로 진행한다.
