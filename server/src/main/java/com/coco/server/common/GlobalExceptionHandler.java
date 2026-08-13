@@ -1,6 +1,9 @@
 package com.coco.server.common;
 
+import com.coco.server.auth.social.SocialProviderException;
 import com.coco.server.common.http.RequestBodyTooLargeException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +14,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(ResourceNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
@@ -29,6 +34,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleForbidden(ForbiddenOperationException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
                 ApiErrorResponse.of(HttpStatus.FORBIDDEN.value(), exception.getCode(), exception.getMessage())
+        );
+    }
+
+    /// The provider's own error text is kept in server logs only.
+    @ExceptionHandler(SocialProviderException.class)
+    public ResponseEntity<ApiErrorResponse> handleSocialProvider(SocialProviderException exception) {
+        LOGGER.warn("Social provider rejected the login attempt", exception);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiErrorResponse.of(
+                        HttpStatus.UNAUTHORIZED.value(),
+                        "AUTH_PROVIDER_REJECTED",
+                        "소셜 로그인에 실패했습니다. 다시 시도해 주세요."
+                )
         );
     }
 

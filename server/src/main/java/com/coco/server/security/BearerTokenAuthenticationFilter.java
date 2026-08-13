@@ -1,7 +1,7 @@
 package com.coco.server.security;
 
 import com.coco.server.auth.AuthenticatedUser;
-import com.coco.server.auth.GuestAuthService;
+import com.coco.server.auth.AuthTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,14 +20,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
-    private final GuestAuthService guestAuthService;
+    private final AuthTokenService authTokenService;
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
 
     public BearerTokenAuthenticationFilter(
-            GuestAuthService guestAuthService,
+            AuthTokenService authTokenService,
             ApiAuthenticationEntryPoint authenticationEntryPoint
     ) {
-        this.guestAuthService = guestAuthService;
+        this.authTokenService = authTokenService;
         this.authenticationEntryPoint = authenticationEntryPoint;
     }
 
@@ -54,7 +54,7 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        Optional<AuthenticatedUser> user = guestAuthService.authenticate(rawToken);
+        Optional<AuthenticatedUser> user = authTokenService.authenticate(rawToken);
         if (user.isEmpty()) {
             reject(request, response);
             return;

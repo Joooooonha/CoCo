@@ -38,6 +38,12 @@ public class UserEntity {
         this.displayName = displayName;
     }
 
+    /// Called when a guest links its first social identity. The display name is
+    /// kept so the account keeps its identity across the upgrade.
+    public void promoteToMember() {
+        this.accountType = AccountType.MEMBER;
+    }
+
     public UUID getId() {
         return id;
     }

@@ -14,6 +14,8 @@ public interface CourseRepository extends JpaRepository<CourseEntity, UUID> {
     @Query("select distinct course from CourseEntity course order by course.id")
     List<CourseEntity> findAllWithDetails();
 
+    int deleteByOwnerId(UUID ownerId);
+
     @EntityGraph(attributePaths = {"owner", "routePoints", "elements"})
     @Query("select course from CourseEntity course where course.id = :id")
     Optional<CourseEntity> findByIdWithDetails(@Param("id") UUID id);
