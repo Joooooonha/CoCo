@@ -60,7 +60,8 @@ CoCo의 핵심은 코스를 많이 검색하는 것이 아니라, 선택한 코�
 | 스크랩 | 사용자가 다시 보고 싶은 코스를 개인 보관함에 저장한 상태 |
 | 반응 | 코스 전체에 대해 사용자가 남기는 정해진 피드백 |
 | 게스트 사용자 | 별도 로그인 화면 없이 기기에서 발급받은 계정 |
-| Apple 사용자 | Sign in with Apple로 복구 가능한 계정으로 전환한 사용자 |
+| 회원 사용자 | Naver 또는 Kakao 로그인을 연결해 복구 가능한 계정으로 전환한 사용자 |
+| 외부 신원 | 소셜 제공자와 그 제공자가 부여한 사용자 식별자의 쌍 |
 
 코스 요소와 반응은 다르다. 요소는 경로 위 좌표에 묶인 정보이고, 반응은 코스 전체에 대한 사용자 평가다.
 
@@ -205,8 +206,8 @@ V2는 MVP 기능을 TestFlight 테스터에게 배포하고 공개 인터넷 API
 | ID | 기능 | 기준 |
 |---|---|---|
 | V2-F1 | TestFlight 베타 배포 | 내부 테스트 후 외부 테스터 초대와 빌드 갱신 절차를 제공한다. |
-| V2-F2 | Sign in with Apple | iOS `AuthenticationServices`를 사용하고 서버가 Apple identity token을 검증한다. |
-| V2-F3 | 게스트 계정 승계 | 로그인 시 기존 게스트의 스크랩, 반응과 작성 코스를 Apple 계정에 유지한다. |
+| V2-F2 | Naver·Kakao 소셜 로그인 | OAuth 2.0 Authorization Code 흐름을 사용하고 코드 교환과 프로필 조회는 서버가 수행한다. |
+| V2-F3 | 게스트 계정 승계 | 로그인 시 기존 게스트의 스크랩, 반응과 작성 코스를 로그인 계정에 유지한다. |
 | V2-F4 | 로그아웃과 계정 삭제 | 토큰을 폐기하고 앱 안에서 계정 및 관련 개인정보 삭제를 시작할 수 있다. |
 | V2-F5 | Cloudflare 공개 API | 일반 사용자는 Tailscale 없이 Cloudflare Tunnel의 HTTPS 호스트로 접근한다. |
 | V2-F6 | 사설 운영 경로 | Tailscale은 개발자 SSH와 CI/CD의 Mac mini 접근에만 사용한다. |
@@ -220,7 +221,9 @@ V2는 MVP 기능을 TestFlight 테스터에게 배포하고 공개 인터넷 API
 
 V2-F9부터 V2-F13은 MVP 기능의 완성도를 올리는 항목이고, V2-F1의 TestFlight 배포보다 먼저 마무리한다. 새 기능(GPS 기록, 크루, 내비게이션, 날씨 표현)은 `BACKLOG.md`에 있으며 이 표로 옮기기 전까지 구현하지 않는다.
 
-V2의 첫 소셜 로그인 제공자는 Sign in with Apple이다. Google 또는 Kakao 로그인은 제공자 선택, 개인정보 처리와 계정 연결 정책을 별도로 확정한 뒤 추가한다. TestFlight는 Apple Developer 앱이 아니라 테스터의 TestFlight 앱을 통해 설치한다.
+V2의 소셜 로그인 제공자는 Naver와 Kakao다. Sign in with Apple은 유료 Apple Developer Program 가입이 있어야 capability를 켤 수 있어 이 단계에서 제외한다. 같은 이유로 TestFlight(V2-F1)도 가입 전까지 진행할 수 없으며, 그때까지 검증은 시뮬레이터와 Xcode 서명 실기기 설치로 수행한다.
+
+App Store 심사 규정은 서드파티 소셜 로그인을 제공하는 앱에 Sign in with Apple을 함께 요구한다. 공개 App Store 배포가 범위에 들어올 때 다시 검토한다.
 
 ---
 
@@ -264,7 +267,7 @@ V2의 첫 소셜 로그인 제공자는 Sign in with Apple이다. Google 또는 
 
 ```text
 User
-  id, displayName, accountType
+  id, displayName, accountType, linkedProviders
 
 Course
   id, ownerId, ownerName, name, summary, difficulty,
@@ -287,11 +290,15 @@ CourseReaction
 열거형:
 
 - `Difficulty`: `EASY`, `MODERATE`, `HARD`
+- `AccountType`: `GUEST`, `MEMBER`
+- `AuthProvider`: `NAVER`, `KAKAO`
 - `ElementCategory`: `VIEW`, `CAUTION`, `FACILITY`
 - `ReactionType`: `LIKE`, `HARD`, `SCENIC`
 - `RouteSource`: `PLANNED_MAPKIT`, `IMPORTED_GPX`, `DRAWN_FREEHAND`(V2); 후속으로 `RECORDED_GPS`, `PLANNED_KAKAO`
 
 `photoURL`은 서버가 만들어 주는 조회용 절대 URL이다. 저장소 키를 클라이언트에 노출하지 않는다.
+
+`linkedProviders`는 이 계정에 연결된 소셜 제공자 목록이다. 게스트는 빈 배열이며, 프로필 화면에서 로그인 수단을 표시하는 데 쓴다. `accountType`은 `linkedProviders`가 비어 있으면 `GUEST`, 하나 이상이면 `MEMBER`다.
 
 모델은 `Codable`, `Identifiable`, 값 타입을 기본으로 한다. 공용 모델에는 `CLLocationCoordinate2D`를 저장하지 않고, MapKit 경계에서 자체 좌표 타입과 변환한다.
 
@@ -299,8 +306,8 @@ CourseReaction
 
 | 테이블 | 책임 |
 |---|---|
-| `users` | 게스트 및 향후 Apple 계정 |
-| `external_identities` | V2 외부 로그인 제공자와 제공자별 사용자 식별자의 유일한 연결 |
+| `users` | 게스트 및 소셜 로그인 계정 |
+| `external_identities` | 외부 로그인 제공자와 제공자별 사용자 식별자의 유일한 연결 |
 | `auth_tokens` | 해시된 게스트 인증 토큰과 만료 상태 |
 | `courses` | 코스 기본 정보와 작성자 |
 | `course_route_points` | 순서가 있는 경로 좌표 |
@@ -314,9 +321,13 @@ V2에서 추가되는 변경:
 
 | 대상 | 변경 |
 |---|---|
+| `external_identities` | 신규 테이블. `(provider, provider_user_id)`에 유일 제약을 두고 사용자 삭제 시 함께 삭제한다 |
+| `users.account_type` | 체크 제약을 `GUEST`, `MEMBER`로 교체. 기존 `APPLE` 값은 사용하지 않는다 |
 | `courses.route_source` | 체크 제약에 `DRAWN_FREEHAND` 추가 |
 | `course_elements.photo_object_key` | 저장소 객체 키. 사진이 없으면 `NULL` |
 | `course_elements.photo_uploaded_at` | 업로드 확정 시각. 확정 전에는 `NULL` |
+
+한 사용자는 제공자별로 최대 하나의 외부 신원을 가진다. 같은 외부 신원을 두 사용자가 나눠 가질 수 없다.
 
 스키마 변경 전에 정기 백업을 반드시 활성화한다. `DEPLOYMENT.md` 10장에서 백업을 "다음 Flyway 변경 전"까지 유예해 두었으므로, 이 마이그레이션이 그 기한이다.
 
@@ -392,7 +403,53 @@ Nginx는 V2 초기 구성에 넣지 않는다. Cloudflare가 TLS와 Edge 보호�
 - [Kakao Mobility 길찾기 API](https://developers.kakaomobility.com/product/naviapi.html)
 - [Kakao Mobility 도보 길찾기 API](https://developers.kakaomobility.com/affiliate/walking/directions.html)
 
-### 6.6 V2 객체 저장소
+### 6.6 V2 소셜 로그인
+
+OAuth 2.0 Authorization Code 흐름을 사용한다. 클라이언트 비밀값은 앱에 넣지 않고 서버에만 둔다.
+
+#### 흐름
+
+1. 앱이 `state`를 난수로 만들고 `ASWebAuthenticationSession`으로 제공자 인증 페이지를 연다. 외부 SDK를 추가하지 않고 iOS `AuthenticationServices`의 네이티브 API만 사용한다.
+2. 사용자가 제공자 화면에서 로그인한다.
+3. 제공자가 서버의 콜백 주소로 `code`와 `state`를 전달한다.
+4. 서버 콜백은 값을 소비하지 않고 앱의 커스텀 스킴 `coco://oauth/callback`으로 그대로 넘긴다.
+5. 앱이 `state` 일치를 확인한 뒤 `code`를 서버의 로그인 API로 보낸다. 게스트 토큰이 있으면 함께 보낸다.
+6. 서버가 제공자 토큰 엔드포인트에 `code`와 클라이언트 비밀값을 보내 액세스 토큰을 받고, 프로필 API로 제공자 사용자 식별자를 조회한다.
+7. 서버가 계정을 결정하고 CoCo 토큰을 발급한다.
+
+제공자 액세스 토큰은 사용자 식별자를 조회하는 데만 쓰고 저장하지 않는다. 이후 모든 API 인증은 기존 CoCo 토큰 체계를 그대로 사용한다.
+
+콜백을 서버에 두는 이유는 두 제공자 모두 등록 가능한 리디렉션 주소를 `https`로 제한하기 때문이다. 커스텀 스킴을 제공자에 직접 등록하지 않는다.
+
+#### 계정 결정 규칙
+
+| 상황 | 처리 |
+|---|---|
+| 외부 신원이 이미 어떤 사용자에 연결됨 | 그 사용자로 로그인한다. 요청에 게스트 토큰이 있어도 게스트 데이터를 병합하지 않는다. |
+| 연결된 사용자가 없고 유효한 게스트 토큰이 있음 | 그 게스트에 외부 신원을 연결하고 `MEMBER`로 승격한다. 스크랩·반응·작성 코스는 그대로 유지된다. |
+| 연결된 사용자가 없고 게스트 토큰도 없음 | 새 `MEMBER` 사용자를 만들고 외부 신원을 연결한다. |
+
+승계는 하나의 트랜잭션에서 수행한다. 이미 다른 계정에 연결된 외부 신원으로 게스트를 승격하려는 시도는 거부하고, 계정 병합은 이 단계 범위가 아니다.
+
+#### 수집 범위와 보관
+
+- 제공자에 요청하는 동의 항목은 사용자 식별자와 닉네임까지로 제한한다. 이메일과 그 밖의 프로필 정보는 필요해질 때 별도로 결정한다.
+- 제공자가 준 닉네임은 최초 연결 시 표시 이름의 기본값으로만 쓰고, 이후에는 사용자가 앱에서 바꾼 이름을 우선한다.
+- 제공자 사용자 식별자 외에 제공자 프로필 원본을 저장하지 않는다.
+
+#### 비밀값
+
+- `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `KAKAO_REST_API_KEY`, `KAKAO_CLIENT_SECRET`는 환경 변수로 주입한다.
+- 저장소에는 키 이름만 담은 예시 파일을 둔다. 실제 값과 리디렉션 주소가 담긴 운영 파일은 커밋하지 않는다.
+- 앱 번들에는 어떤 클라이언트 비밀값도 넣지 않는다.
+
+참고:
+
+- [Kakao 로그인 REST API](https://developers.kakao.com/docs/latest/ko/kakaologin/rest-api)
+- [네이버 로그인 API 명세](https://developers.naver.com/docs/login/api/api.md)
+- [ASWebAuthenticationSession](https://developer.apple.com/documentation/authenticationservices/aswebauthenticationsession)
+
+### 6.7 V2 객체 저장소
 
 사진과 백업은 성격이 달라 저장소를 나눈다. 기준은 조회 빈도와 외부 전송량이다.
 
@@ -432,8 +489,10 @@ PostgreSQL 덤프에는 사진의 R2 객체 키만 들어있고 이미지 바이
 | Method | Path | 목적 |
 |---|---|---|
 | `POST` | `/api/v1/auth/guest` | 게스트 사용자와 토큰 발급 |
-| `POST` | `/api/v1/auth/apple` | V2 Apple identity token 검증과 게스트 계정 승계 |
+| `GET` | `/api/v1/auth/social/{provider}/callback` | V2 제공자 리디렉션을 앱 커스텀 스킴으로 전달 |
+| `POST` | `/api/v1/auth/social/{provider}` | V2 인가 코드 교환, 계정 결정과 CoCo 토큰 발급 |
 | `POST` | `/api/v1/auth/logout` | V2 현재 앱 토큰 폐기 |
+| `GET` | `/api/v1/me` | V2 현재 사용자와 연결된 제공자 조회 |
 | `DELETE` | `/api/v1/me` | V2 계정 및 관련 개인정보 삭제 요청 |
 | `PATCH` | `/api/v1/me` | 현재 사용자의 표시 이름 변경 |
 | `GET` | `/api/v1/courses` | 코스 목록 조회 |
@@ -525,7 +584,32 @@ PostgreSQL 덤프에는 사진의 R2 객체 키만 들어있고 이미지 바이
 - 요소 수정·삭제는 코스 작성자만 가능하며 위반 시 `403 COURSE_OWNER_ONLY`를 반환한다.
 - 코스의 마지막 남은 요소는 삭제할 수 없으며 `409 ELEMENT_MINIMUM_REQUIRED`를 반환한다.
 
-### 7.3 V2 사진 업로드 계약
+### 7.3 V2 소셜 로그인 계약
+
+`POST /api/v1/auth/social/{provider}` 요청:
+
+```json
+{
+  "code": "제공자가 발급한 인가 코드",
+  "redirectUri": "https://api.cocorun.site/api/v1/auth/social/naver/callback"
+}
+```
+
+- `provider`는 `naver` 또는 `kakao`이며 그 외에는 `400 AUTH_PROVIDER_UNSUPPORTED`를 반환한다.
+- 게스트 승계를 원하면 `Authorization: Bearer <guest-token>`을 함께 보낸다. 없으면 새 계정을 만든다.
+- `redirectUri`는 인가 요청에 쓴 값과 같아야 하며 서버가 허용 목록과 대조한다. 다르면 `400 AUTH_REDIRECT_URI_MISMATCH`를 반환한다.
+- 응답은 게스트 발급과 같은 형태에 `linkedProviders`를 더한 사용자 정보와 새 토큰이다.
+- 코드 교환이나 프로필 조회가 실패하면 `401 AUTH_PROVIDER_REJECTED`를 반환하고 제공자의 원본 오류 메시지는 노출하지 않는다.
+- 이미 다른 사용자에 연결된 외부 신원으로 게스트를 승계하려 하면 그 외부 신원의 계정으로 로그인하고 게스트 데이터는 병합하지 않는다.
+- 로그인에 성공하면 요청에 쓰인 게스트 토큰은 폐기한다.
+
+`POST /api/v1/auth/logout`은 현재 토큰만 폐기하고 `204`를 반환한다. 다른 기기의 토큰은 유지한다.
+
+`DELETE /api/v1/me`는 사용자와 외부 신원, 토큰, 스크랩, 반응, 작성 코스와 그 하위 데이터를 하나의 트랜잭션에서 삭제하고 `204`를 반환한다. 삭제 후 같은 소셜 계정으로 다시 로그인하면 새 사용자로 시작한다.
+
+`state` 검증은 앱이 수행한다. 서버 콜백은 값을 그대로 전달하며 세션을 만들지 않는다.
+
+### 7.4 V2 사진 업로드 계약
 
 사진 바이트는 Spring을 통과하지 않는다. 서버는 권한을 검증하고 사전 서명 URL만 발급한다.
 
@@ -541,7 +625,7 @@ PostgreSQL 덤프에는 사진의 R2 객체 키만 들어있고 이미지 바이
 - 확정되지 않은 업로드는 저장소 수명 주기 규칙으로 24시간 뒤 정리한다.
 - 조회 응답의 `photoURL`은 사전 서명 GET URL 또는 커스텀 도메인 URL이며, 저장소 키는 응답에 포함하지 않는다.
 
-### 7.4 V2 경로 계약 변경
+### 7.5 V2 경로 계약 변경
 
 - `routeSource` 허용 값에 `DRAWN_FREEHAND`를 추가한다.
 - `DRAWN_FREEHAND` 코스는 도보 경로 계산을 거치지 않으므로 서버가 경로 형태를 검증하지 않는다. 좌표 범위, 지점 수 상한, 순서 연속성 검증은 그대로 적용한다.
@@ -616,9 +700,11 @@ PostgreSQL 덤프에는 사진의 R2 객체 키만 들어있고 이미지 바이
 ### Phase 8. V2 계정
 
 - 정기 백업 활성화 (다음 Flyway 변경의 선행 조건)
-- Sign in with Apple과 서버 토큰 검증
-- 게스트 계정 승계, 로그아웃과 앱 내 계정 삭제
-- 프로필과 계정 관리 화면
+- Naver·Kakao 개발자 콘솔 앱 등록과 리디렉션 주소 설정
+- `external_identities` 테이블과 `account_type` 제약 마이그레이션
+- 서버 인가 코드 교환, 프로필 조회, 계정 결정과 게스트 승계
+- iOS `ASWebAuthenticationSession` 로그인 흐름과 `state` 검증
+- 로그아웃, 앱 내 계정 삭제와 프로필 화면
 
 ### Phase 9. V2 정밀 경로 생성
 
@@ -673,7 +759,12 @@ Phase 8부터 11은 기존 기능의 완성도를 올리는 단계다. `BACKLOG.
 | V2-S10 | 5 MiB를 넘는 사진 업로드 시도 | 서버가 URL을 발급하지 않고 `413`으로 거부한다. |
 | V2-S11 | 다른 사용자 코스의 요소에 사진 업로드 시도 | 서버가 `403`으로 거부한다. |
 | V2-S12 | 사진이 있는 요소를 삭제 | 요소와 저장소 객체가 함께 삭제된다. |
-| V2-S13 | 로그아웃 후 재로그인 | 같은 Apple 계정의 스크랩, 반응과 작성 코스가 유지된다. |
+| V2-S13 | 로그아웃 후 재로그인 | 같은 소셜 계정의 스크랩, 반응과 작성 코스가 유지된다. |
+| V2-S14 | 게스트로 코스를 만든 뒤 Naver 로그인 | 작성 코스와 스크랩·반응이 그대로 유지되고 계정이 `MEMBER`로 바뀐다. |
+| V2-S15 | 앱을 지우고 다시 설치한 뒤 같은 소셜 계정으로 로그인 | 이전 계정의 데이터를 되찾는다. |
+| V2-S16 | `state`가 다른 콜백 수신 | 앱이 로그인을 중단하고 오류를 표시한다. |
+| V2-S17 | 이미 다른 계정에 연결된 소셜 계정으로 게스트 상태에서 로그인 | 그 계정으로 로그인되고 게스트 데이터는 병합되지 않는다. |
+| V2-S18 | 계정 삭제 후 같은 소셜 계정으로 재로그인 | 이전 데이터가 없는 새 계정으로 시작한다. |
 
 ---
 
@@ -707,7 +798,8 @@ Phase 8부터 11은 기존 기능의 완성도를 올리는 단계다. `BACKLOG.
 ### V2
 
 - [ ] TestFlight 내부 및 외부 테스트 절차가 검증되었다.
-- [ ] Sign in with Apple 로그인, 게스트 승계, 로그아웃과 계정 삭제가 동작한다.
+- [ ] Naver와 Kakao 로그인, 게스트 승계, 로그아웃과 계정 삭제가 동작한다.
+- [ ] 클라이언트 비밀값이 앱 번들과 저장소에 포함되지 않는다.
 - [ ] 일반 iPhone 사용자가 Tailscale 없이 Cloudflare HTTPS API에 접근한다.
 - [ ] Cloudflare Tunnel 외에 Mac mini의 공개 인바운드 포트가 없다.
 - [ ] 서버와 컨테이너 자원 상한이 설정되고 초과 요청 테스트가 통과한다.
@@ -739,6 +831,9 @@ Phase 8부터 11은 기존 기능의 완성도를 올리는 단계다. `BACKLOG.
 - 코스 따라가기 내비게이션과 음성 안내
 - 날씨 상태의 동적 지도 표현
 - 공개 App Store 배포
+- Sign in with Apple과 TestFlight (유료 Apple Developer Program 가입 후 재검토)
+- 소셜 제공자 SDK 도입 (네이티브 `ASWebAuthenticationSession`으로 대체)
+- 여러 소셜 계정을 한 사용자에 연결하는 계정 병합
 - Kakao 지도 네이티브 SDK
 - 제휴 전 Kakao 도보 길찾기 API
 - 코스 추천 알고리즘과 관리자 운영 도구
@@ -752,8 +847,10 @@ Phase 8부터 11은 기존 기능의 완성도를 올리는 단계다. `BACKLOG.
 - 코스 등록과 보관함의 최종 화면 구성은 Figma와 HIG 검토 후 확정한다.
 - 공개 배포를 고려할 때 MapKit 경로 데이터의 저장·재사용 조건을 다시 확인한다.
 - Kakao 도보 길찾기 제휴 가능 여부를 확인한 뒤 경로 공급자 변경을 결정한다.
-- Google 또는 Kakao 로그인을 V2 이후에 추가할지와 계정 연결 우선순위를 결정한다.
-- TestFlight 사용 전 Apple Developer Program 가입 상태와 App Store Connect 역할을 확인한다.
+- 유료 Apple Developer Program에 가입하면 Sign in with Apple과 TestFlight를 다시 범위에 넣을지 결정한다. App Store 심사 규정은 서드파티 소셜 로그인을 제공하는 앱에 Sign in with Apple을 함께 요구한다.
+- 소셜 로그인 도입으로 개인정보를 다루게 되므로 개인정보 처리방침 문서와 게시 위치를 정한다.
+- 제공자에서 이메일 동의 항목을 받을지, 받는다면 어떤 기능에 쓸지 결정한다.
+- 한 사용자가 Naver와 Kakao를 모두 연결할 수 있게 할지와 계정 병합 규칙을 결정한다.
 - 지점 25개 상한을 더 올릴지는 실제 요청 제한 측정 결과를 보고 결정한다.
 - 자유 그리기 경로에 사용자 신고나 검증 장치가 필요한지는 실제 사용 사례를 보고 판단한다.
 - 사진 조회를 사전 서명 GET URL로 할지 Cloudflare 커스텀 도메인으로 할지는 캐시 효율을 확인한 뒤 정한다.

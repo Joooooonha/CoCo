@@ -424,3 +424,26 @@
 - User-requested: course deletion. Added owner-only `DELETE /api/v1/courses/{courseId}` (404 unknown, 403 non-owner, cascade removes route points, elements, scraps, reactions) with an integration test covering the non-owner rejection and delete-then-404 flow.
 - iOS: 내 코스 rows support swipe-to-delete with a destructive confirmation dialog that spells out the cascade, local list removal on success, and an error alert on failure. `SPEC.md` gains F14 and the DELETE row in the API table.
 - The floating iOS 26 tab bar position was questioned; confirmed it is the system Liquid Glass design (not adjustable via public API) and the user chose to keep the default over the legacy compatibility mode.
+
+## 2026-08-13 - Phase 8 준비: 정기 백업 활성화와 소셜 로그인 범위 확정
+
+### 정기 백업 활성화
+
+- 사용자가 Mac mini에서 systemd 유닛을 설치하고 `coco-backup.timer`를 활성화했다. 다음 실행은 매일 04:31 KST.
+- 타이머 등록만으로는 실행을 보장하지 못하므로, systemd와 같은 최소 환경(`env -i` + 기본 PATH)에서 백업 스크립트를 직접 실행해 검증했다. 종료 코드 0, 새 덤프 생성, `pg_restore --list`로 8개 테이블 데이터 확인.
+- 이로써 `DEPLOYMENT.md` 10장에서 "다음 Flyway 변경 전까지" 유예했던 백업 조건이 해소되어 V2 스키마 마이그레이션을 진행할 수 있다.
+
+### 소셜 로그인 제공자 변경
+
+- Sign in with Apple은 capability 활성화에 유료 Apple Developer Program 가입이 필요하고 현재 이 머신에는 서명 인증서와 팀 설정이 없다. 사용자 결정으로 제공자를 Naver와 Kakao로 교체했다.
+- 같은 제약으로 TestFlight(V2-F1)도 가입 전까지 진행할 수 없다. 검증은 시뮬레이터와 Xcode 서명 실기기 설치로 계속한다.
+- App Store 심사 규정이 서드파티 소셜 로그인 제공 시 Sign in with Apple을 함께 요구하는 점은 공개 배포가 범위에 들어올 때 다시 검토하도록 미결정 사항에 남겼다.
+
+### SPEC 개정 내용
+
+- 2장 용어에 회원 사용자와 외부 신원을 추가했다.
+- V2-F2를 Naver·Kakao 소셜 로그인으로 교체하고 V2-F3의 승계 대상을 로그인 계정으로 일반화했다.
+- 6.6에 OAuth 2.0 Authorization Code 흐름, 계정 결정 규칙, 수집 범위와 비밀값 관리 기준을 정의했다. 외부 SDK 없이 iOS 네이티브 `ASWebAuthenticationSession`을 사용하고, 클라이언트 비밀값은 서버에만 둔다. 두 제공자 모두 리디렉션 주소를 `https`로 제한하므로 서버 콜백이 커스텀 스킴으로 전달한다.
+- 5장에 `AccountType`을 `GUEST`/`MEMBER`로 재정의하고 `linkedProviders`를 추가했다. `external_identities` 신규 테이블과 `account_type` 제약 교체를 마이그레이션 목록에 넣었다.
+- 7.3에 로그인·로그아웃·계정 삭제 API 계약과 오류 코드를 정의했다.
+- 확인 시나리오 V2-S14~S18(게스트 승계, 재설치 복구, `state` 불일치, 기존 연결 계정, 삭제 후 재로그인)을 추가했다.
