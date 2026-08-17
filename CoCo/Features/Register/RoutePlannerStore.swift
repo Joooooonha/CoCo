@@ -61,7 +61,9 @@ enum RouteSegmentState: Equatable {
 @MainActor
 @Observable
 final class RoutePlannerStore {
-    static let maximumWaypoints = 7
+    /// Start, up to 23 stops, and finish. Raising this further needs a real
+    /// throttling measurement first; see `SPEC.md` V2 정밀 경로 계획.
+    static let maximumWaypoints = 25
     /// Average walking pace used when an imported GPX has no duration metadata.
     private static let fallbackWalkingSpeedMetersPerSecond = 1.25
 
@@ -121,9 +123,15 @@ final class RoutePlannerStore {
             return "가져온 GPX 경로를 확인하세요"
         }
         switch waypoints.count {
-        case 0: return "지도를 탭해 출발지를 선택하세요"
-        case Self.maximumWaypoints...: return "지점은 최대 \(Self.maximumWaypoints)개까지 선택할 수 있어요"
-        default: return "지도를 탭해 경유지나 도착지를 추가하세요"
+        case 0:
+            return "지도를 탭해 출발지를 선택하세요"
+        case Self.maximumWaypoints...:
+            return "지점은 최대 \(Self.maximumWaypoints)개까지 선택할 수 있어요"
+        default:
+            // Denser points are how a route is steered onto the path the user
+            // wants, so the remaining budget is worth showing.
+            let remaining = Self.maximumWaypoints - waypoints.count
+            return "지도를 탭해 경유지나 도착지를 추가하세요 (\(remaining)개 더 가능)"
         }
     }
 

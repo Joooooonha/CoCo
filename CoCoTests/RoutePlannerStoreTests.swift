@@ -20,12 +20,15 @@ struct RoutePlannerStoreTests {
 
     @Test
     func waypointLimitAndLoopClosing() {
-        let planner = RoutePlannerStore()
+        // The stub keeps this off the network; only the cap and loop rules matter here.
+        let planner = RoutePlannerStore(calculator: CountingRouteCalculator())
 
-        for index in 0..<10 {
+        // Ask for more than the cap allows to prove the extra taps are ignored.
+        for index in 0..<(RoutePlannerStore.maximumWaypoints + 5) {
             planner.addWaypoint(CLLocationCoordinate2D(latitude: 37.5 + Double(index) * 0.001, longitude: 127.0))
         }
         #expect(planner.waypoints.count == RoutePlannerStore.maximumWaypoints)
+        #expect(!planner.canAddWaypoint)
 
         planner.removeLastWaypoint()
         planner.closeLoopToStart()
