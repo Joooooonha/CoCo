@@ -33,19 +33,22 @@ public class CourseService {
     private final CourseReactionRepository courseReactionRepository;
     private final CourseElementRepository courseElementRepository;
     private final UserRepository userRepository;
+    private final ElementPhotoService elementPhotoService;
 
     public CourseService(
             CourseRepository courseRepository,
             CourseScrapRepository courseScrapRepository,
             CourseReactionRepository courseReactionRepository,
             CourseElementRepository courseElementRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ElementPhotoService elementPhotoService
     ) {
         this.courseRepository = courseRepository;
         this.courseScrapRepository = courseScrapRepository;
         this.courseReactionRepository = courseReactionRepository;
         this.courseElementRepository = courseElementRepository;
         this.userRepository = userRepository;
+        this.elementPhotoService = elementPhotoService;
     }
 
     @Transactional(readOnly = true)
@@ -157,6 +160,9 @@ public class CourseService {
         if (!course.getOwner().getId().equals(userId)) {
             throw new ForbiddenOperationException("COURSE_OWNER_ONLY", "코스 작성자만 삭제할 수 있습니다.");
         }
+        // Rows cascade in the database, but stored objects have to be removed
+        // explicitly or they linger with nothing pointing at them.
+        elementPhotoService.deleteStoredPhotos(course.getElements());
         courseRepository.delete(course);
     }
 
@@ -168,7 +174,7 @@ public class CourseService {
 
         CourseElementEntity element = toElementEntity(course, request);
         courseElementRepository.saveAndFlush(element);
-        return CourseElementResponse.from(courseId, element);
+        return CourseElementResponse.from(courseId, element, elementPhotoService.readableURL(element.getPhotoObjectKey()));
     }
 
     @Transactional
@@ -187,7 +193,7 @@ public class CourseService {
                 request.title() == null ? null : request.title().strip(),
                 request.description() == null ? null : request.description().strip()
         );
-        return CourseElementResponse.from(courseId, element);
+        return CourseElementResponse.from(courseId, element, elementPhotoService.readableURL(element.getPhotoObjectKey()));
     }
 
     @Transactional
@@ -196,6 +202,7 @@ public class CourseService {
         if (courseElementRepository.countByCourseId(courseId) <= 1) {
             throw new ConflictException("ELEMENT_MINIMUM_REQUIRED", "코스에는 요소가 1개 이상 필요합니다.");
         }
+        elementPhotoService.deleteStoredPhotos(List.of(element));
         courseElementRepository.delete(element);
     }
 
@@ -280,7 +287,8 @@ public class CourseService {
                         scrapCounts.getOrDefault(course.getId(), 0),
                         ReactionCountsResponse.from(reactionCounts.getOrDefault(course.getId(), Map.of())),
                         scrappedCourseIds.contains(course.getId()),
-                        myReactions.getOrDefault(course.getId(), Set.of())
+                        myReactions.getOrDefault(course.getId(), Set.of()),
+                        elementPhotoService::readableURL
                 ))
                 .toList();
         return new CourseListResponse(items);

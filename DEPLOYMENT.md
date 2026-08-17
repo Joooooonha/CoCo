@@ -107,6 +107,29 @@ COCO_MANAGEMENT_PORT=19090
 
 나머지 값은 1차 홈서버 보호 기본값이다. Mac mini 사양과 부하 측정 없이 상한을 높이지 않는다.
 
+### 요소 사진 저장소 (Cloudflare R2)
+
+사진 바이트는 서버를 통과하지 않고 앱이 사전 서명 URL로 R2에 직접 올린다. 서버에는 R2 자격 증명만 필요하다.
+
+Cloudflare 대시보드에서:
+
+1. R2를 활성화한다. 무료 등급에도 결제 수단 등록이 필요하다.
+2. 버킷 `coco-element-photos`를 만든다. 위치는 APAC, 공개 접근은 끄고 둔다.
+3. R2 API 토큰을 발급한다. 권한은 해당 버킷에 대한 Object Read & Write까지만 준다.
+4. 발급 화면에 한 번만 보이는 Access Key ID와 Secret Access Key, 그리고 계정 ID를 받아 둔다.
+
+`.env.production`에 다음을 채운다. 값을 비워 두면 서버는 정상 기동하고 사진 API만 `503 PHOTO_STORAGE_UNAVAILABLE`을 반환한다.
+
+```dotenv
+COCO_STORAGE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+COCO_STORAGE_REGION=auto
+COCO_STORAGE_BUCKET=coco-element-photos
+COCO_STORAGE_ACCESS_KEY_ID=<R2 액세스 키 ID>
+COCO_STORAGE_SECRET_ACCESS_KEY=<R2 시크릿 액세스 키>
+```
+
+R2에는 결제 한도를 강제하는 기능이 없다. 대시보드의 Notifications에서 사용량 알림을 걸어 두는 것으로 대신한다.
+
 ## 5. 시작과 확인
 
 ```bash

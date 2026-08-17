@@ -2,6 +2,8 @@ package com.coco.server.course;
 
 import com.coco.server.auth.AuthenticatedUser;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,10 +21,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/courses")
 public class CourseController {
-    private final CourseService courseService;
+    public record PhotoUploadRequest(@NotBlank String contentType, @Positive long contentLength) {
+    }
 
-    public CourseController(CourseService courseService) {
+    public record PhotoConfirmRequest(@NotBlank String contentType) {
+    }
+
+    private final CourseService courseService;
+    private final ElementPhotoService elementPhotoService;
+
+    public CourseController(CourseService courseService, ElementPhotoService elementPhotoService) {
         this.courseService = courseService;
+        this.elementPhotoService = elementPhotoService;
     }
 
     @GetMapping
@@ -84,6 +94,44 @@ public class CourseController {
             @PathVariable UUID elementId
     ) {
         courseService.deleteElement(user.id(), courseId, elementId);
+    }
+
+    /// Hands out a presigned URL so the client uploads the image straight to
+    /// storage; the bytes never pass through this server.
+    @PostMapping("/{courseId}/elements/{elementId}/photo/upload-url")
+    public ElementPhotoService.UploadTicket createPhotoUploadURL(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID courseId,
+            @PathVariable UUID elementId,
+            @Valid @RequestBody PhotoUploadRequest request
+    ) {
+        return elementPhotoService.createUploadTicket(
+                user.id(),
+                courseId,
+                elementId,
+                request.contentType(),
+                request.contentLength()
+        );
+    }
+
+    @PutMapping("/{courseId}/elements/{elementId}/photo")
+    public CourseElementResponse confirmPhotoUpload(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID courseId,
+            @PathVariable UUID elementId,
+            @Valid @RequestBody PhotoConfirmRequest request
+    ) {
+        return elementPhotoService.confirmUpload(user.id(), courseId, elementId, request.contentType());
+    }
+
+    @DeleteMapping("/{courseId}/elements/{elementId}/photo")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePhoto(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID courseId,
+            @PathVariable UUID elementId
+    ) {
+        elementPhotoService.deletePhoto(user.id(), courseId, elementId);
     }
 
     @PutMapping("/{courseId}/scrap")

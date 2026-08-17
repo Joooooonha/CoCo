@@ -10,9 +10,16 @@ public record CourseElementResponse(
         double longitude,
         int distanceFromStartMeters,
         String title,
-        String description
+        String description,
+        /// Absolute URL for reading the photo, or null when there is none.
+        /// The storage key is never exposed to clients.
+        String photoURL
 ) {
     static CourseElementResponse from(UUID courseId, CourseElementEntity entity) {
+        return from(courseId, entity, null);
+    }
+
+    static CourseElementResponse from(UUID courseId, CourseElementEntity entity, String photoURL) {
         return new CourseElementResponse(
                 entity.getId(),
                 courseId,
@@ -21,7 +28,8 @@ public record CourseElementResponse(
                 entity.getLongitude(),
                 entity.getDistanceFromStartMeters(),
                 entity.getTitle(),
-                entity.getDescription()
+                entity.getDescription(),
+                photoURL
         );
     }
 }

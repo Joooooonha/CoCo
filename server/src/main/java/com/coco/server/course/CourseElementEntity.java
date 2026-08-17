@@ -41,6 +41,12 @@ public class CourseElementEntity {
     @Column(nullable = false, length = 500)
     private String description;
 
+    @Column(name = "photo_object_key", length = 255)
+    private String photoObjectKey;
+
+    @Column(name = "photo_uploaded_at")
+    private Instant photoUploadedAt;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -72,6 +78,22 @@ public class CourseElementEntity {
 
     public CourseEntity getCourse() {
         return course;
+    }
+
+    public String getPhotoObjectKey() {
+        return photoObjectKey;
+    }
+
+    /// Records a finished upload. Both fields move together so the row never
+    /// claims a photo without saying when it arrived.
+    public void attachPhoto(String objectKey, Instant uploadedAt) {
+        this.photoObjectKey = objectKey;
+        this.photoUploadedAt = uploadedAt;
+    }
+
+    public void detachPhoto() {
+        this.photoObjectKey = null;
+        this.photoUploadedAt = null;
     }
 
     public void applyUpdate(

@@ -3,6 +3,7 @@ package com.coco.server.course;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 public record CourseResponse(
         UUID id,
@@ -22,18 +23,25 @@ public record CourseResponse(
         boolean isScrapped,
         Set<ReactionType> myReactions
 ) {
+    /// `photoURLResolver` turns a stored object key into a readable URL. It is
+    /// supplied by the service because only that layer knows about storage.
     static CourseResponse from(
             CourseEntity entity,
             int scrapCount,
             ReactionCountsResponse reactionCounts,
             boolean isScrapped,
-            Set<ReactionType> myReactions
+            Set<ReactionType> myReactions,
+            Function<String, String> photoURLResolver
     ) {
         List<RoutePointResponse> routePoints = entity.getRoutePoints().stream()
                 .map(RoutePointResponse::from)
                 .toList();
         List<CourseElementResponse> elements = entity.getElements().stream()
-                .map(element -> CourseElementResponse.from(entity.getId(), element))
+                .map(element -> CourseElementResponse.from(
+                        entity.getId(),
+                        element,
+                        photoURLResolver.apply(element.getPhotoObjectKey())
+                ))
                 .toList();
 
         return new CourseResponse(

@@ -2,6 +2,7 @@ package com.coco.server.common;
 
 import com.coco.server.auth.social.SocialProviderException;
 import com.coco.server.common.http.RequestBodyTooLargeException;
+import com.coco.server.storage.StorageUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,31 @@ public class GlobalExceptionHandler {
                         HttpStatus.UNAUTHORIZED.value(),
                         "AUTH_PROVIDER_REJECTED",
                         "소셜 로그인에 실패했습니다. 다시 시도해 주세요."
+                )
+        );
+    }
+
+    @ExceptionHandler(PayloadTooLargeException.class)
+    public ResponseEntity<ApiErrorResponse> handlePayloadTooLarge(PayloadTooLargeException exception) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(
+                ApiErrorResponse.of(
+                        HttpStatus.CONTENT_TOO_LARGE.value(),
+                        exception.getCode(),
+                        exception.getMessage()
+                )
+        );
+    }
+
+    /// Photo endpoints answer with a clear reason when storage has no credentials
+    /// rather than surfacing an internal failure.
+    @ExceptionHandler(StorageUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleStorageUnavailable(StorageUnavailableException exception) {
+        LOGGER.warn("Object storage is not configured", exception);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                ApiErrorResponse.of(
+                        HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "PHOTO_STORAGE_UNAVAILABLE",
+                        "사진 기능을 사용할 수 없어요. 잠시 후 다시 시도해 주세요."
                 )
         );
     }
