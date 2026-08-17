@@ -281,7 +281,8 @@ RoutePoint
 CourseElement
   id, courseId, category, latitude, longitude,
   distanceFromStartMeters, title, description,
-  photoURL            // V2, 없으면 nil
+  photoURL,           // V2, 없으면 nil
+  photoUploadedAt     // V2, 없으면 nil
 
 CourseReaction
   courseId, userId, type
@@ -296,7 +297,7 @@ CourseReaction
 - `ReactionType`: `LIKE`, `HARD`, `SCENIC`
 - `RouteSource`: `PLANNED_MAPKIT`, `IMPORTED_GPX`, `DRAWN_FREEHAND`(V2); 후속으로 `RECORDED_GPS`, `PLANNED_KAKAO`
 
-`photoURL`은 서버가 만들어 주는 조회용 절대 URL이다. 저장소 키를 클라이언트에 노출하지 않는다.
+`photoURL`은 서버가 만들어 주는 조회용 절대 URL이다. 저장소 키를 클라이언트에 노출하지 않는다. 이 URL에는 서명 시각이 들어 있어 응답마다 달라지므로 캐시 키로 쓸 수 없다. 클라이언트는 사진이 바뀔 때만 값이 바뀌는 `photoUploadedAt`을 캐시 키로 쓴다.
 
 `linkedProviders`는 이 계정에 연결된 소셜 제공자 목록이다. 게스트는 빈 배열이며, 프로필 화면에서 로그인 수단을 표시하는 데 쓴다. `accountType`은 `linkedProviders`가 비어 있으면 `GUEST`, 하나 이상이면 `MEMBER`다.
 
@@ -459,7 +460,7 @@ OAuth 2.0 Authorization Code 흐름을 사용한다. 클라이언트 비밀값�
 | DB 덤프와 원본 아카이브 | AWS S3 | 거의 읽지 않아 전송 비용이 작다. 저비용 스토리지 클래스와 버전 관리로 오프사이트 백업 요건을 충족한다. |
 
 - 두 저장소 모두 S3 호환 API를 사용하므로 서버는 엔드포인트와 자격 증명만 다른 하나의 클라이언트 추상화로 다룬다.
-- 버킷은 공개하지 않는다. 업로드는 사전 서명 PUT URL, 조회는 사전 서명 GET URL 또는 Cloudflare 커스텀 도메인 경유로 제공한다.
+- 버킷은 공개하지 않는다. 업로드와 조회 모두 사전 서명 URL로 제공한다. Cloudflare 커스텀 도메인은 버킷 공개를 전제로 하므로 쓰지 않는다. 근거는 `DECISIONS.md` D27.
 - 사전 서명 URL의 유효 시간은 업로드 5분, 조회 1시간을 기본으로 한다.
 - 객체 키는 사용자 식별자를 노출하지 않고 `courses/{courseId}/elements/{elementId}.{jpg|heic}` 형태를 사용한다. 업로드마다 새 UUID를 붙이지 않고 요소·형식당 하나로 고정해, 확정에 실패한 재시도가 잔여 객체를 쌓지 않게 한다. 형식이 바뀌는 교체에서만 이전 객체가 남으므로 그때는 확정 시점에 명시적으로 지운다.
 - 업로드 확정 전 객체와 삭제된 요소의 잔여 객체는 수명 주기 규칙으로 정리한다.
@@ -624,7 +625,7 @@ PostgreSQL 덤프에는 사진의 R2 객체 키만 들어있고 이미지 바이
 - 확정 시 객체가 없으면 `409 PHOTO_NOT_UPLOADED`를 반환한다.
 - 확정되지 않은 업로드는 저장소 수명 주기 규칙으로 24시간 뒤 정리한다.
 - 확정 시 저장된 객체가 5 MiB를 넘으면 객체를 지우고 `413 PHOTO_TOO_LARGE`를 반환한다. 발급 요청에 작은 크기를 적고 큰 파일을 올리는 우회를 막는다.
-- 조회 응답의 `photoURL`은 사전 서명 GET URL 또는 커스텀 도메인 URL이며, 저장소 키는 응답에 포함하지 않는다.
+- 조회 응답의 `photoURL`은 유효 1시간의 사전 서명 GET URL이며, 저장소 키는 응답에 포함하지 않는다. 이 URL은 캐시 키로 쓸 수 없으므로 `photoUploadedAt`을 함께 내려준다.
 - 저장소 자격 증명이 설정되지 않은 환경에서는 서버가 기동에 실패하지 않고 사진 API만 `503 PHOTO_STORAGE_UNAVAILABLE`을 반환한다.
 
 ### 7.5 V2 경로 계약 변경
@@ -855,6 +856,5 @@ Phase 8부터 11은 기존 기능의 완성도를 올리는 단계다. `BACKLOG.
 - 한 사용자가 Naver와 Kakao를 모두 연결할 수 있게 할지와 계정 병합 규칙을 결정한다.
 - 지점 25개 상한을 더 올릴지는 추가 측정 후 결정한다. 2026-08-17 측정에서 구간 24개를 순차 요청했을 때 요청 제한은 발생하지 않았고 전체 2.1초가 걸렸다. 상한을 크게 올릴 경우 계산 대기 시간이 먼저 문제가 될 가능성이 높다.
 - 자유 그리기 경로에 사용자 신고나 검증 장치가 필요한지는 실제 사용 사례를 보고 판단한다.
-- 사진 조회를 사전 서명 GET URL로 할지 Cloudflare 커스텀 도메인으로 할지는 캐시 효율을 확인한 뒤 정한다.
 - 사진 저장 용량이 늘어날 때 사용자당 상한과 보존 기간을 정한다.
 - 영상 도입 시 용량 상한, 인코딩과 재생 방식을 별도로 확정한다.

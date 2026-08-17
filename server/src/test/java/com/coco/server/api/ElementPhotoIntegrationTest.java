@@ -1,6 +1,8 @@
 package com.coco.server.api;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -105,6 +107,50 @@ class ElementPhotoIntegrationTest {
         mockMvc.perform(get("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, authorization))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.elements[0].photoURL").isNotEmpty());
+    }
+
+    /// Clients cache by this timestamp because `photoURL` carries a new
+    /// signature every time. It must not move when the photo has not changed.
+    @Test
+    void theUploadTimestampIsStableAcrossReadsAndMovesOnReplacement() throws Exception {
+        String authorization = issueGuestAuthorization();
+        JsonNode course = createCourse(authorization, "캐시 키 코스");
+        String courseId = course.get("id").asText();
+        String elementId = course.get("elements").get(0).get("id").asText();
+        attachPhoto(authorization, courseId, elementId);
+
+        JsonNode firstRead = readElement(authorization, courseId);
+        JsonNode secondRead = readElement(authorization, courseId);
+
+        assertEquals(
+                firstRead.get("photoUploadedAt").asText(),
+                secondRead.get("photoUploadedAt").asText(),
+                "사진이 그대로면 업로드 시각도 그대로여야 한다"
+        );
+        // photoURL itself is not asserted here: the real presigner stamps the
+        // signing time into the URL, so it drifts as time passes, while this
+        // stub returns a fixed string.
+
+        Thread.sleep(10);
+        attachPhoto(authorization, courseId, elementId);
+
+        assertNotEquals(
+                firstRead.get("photoUploadedAt").asText(),
+                readElement(authorization, courseId).get("photoUploadedAt").asText(),
+                "사진을 교체하면 업로드 시각이 바뀌어 캐시가 무효화된다"
+        );
+    }
+
+    @Test
+    void elementsWithoutAPhotoCarryNeitherURLNorTimestamp() throws Exception {
+        String authorization = issueGuestAuthorization();
+        JsonNode course = createCourse(authorization, "사진 없는 코스");
+
+        mockMvc.perform(get("/api/v1/courses/" + course.get("id").asText())
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.elements[0].photoURL").doesNotExist())
+                .andExpect(jsonPath("$.elements[0].photoUploadedAt").doesNotExist());
     }
 
     @Test
@@ -263,6 +309,16 @@ class ElementPhotoIntegrationTest {
                         .content("{\"contentType\":\"image/jpeg\"}"))
                 .andExpect(status().isOk());
         return objectKey;
+    }
+
+    private JsonNode readElement(String authorization, String courseId) throws Exception {
+        String body = mockMvc.perform(get("/api/v1/courses/" + courseId)
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(body).get("elements").get(0);
     }
 
     private String photoPath(String courseId, String elementId) {

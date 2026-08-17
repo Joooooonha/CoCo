@@ -84,6 +84,10 @@ public class CourseElementEntity {
         return photoObjectKey;
     }
 
+    public Instant getPhotoUploadedAt() {
+        return photoUploadedAt;
+    }
+
     /// Records a finished upload. Both fields move together so the row never
     /// claims a photo without saying when it arrived.
     public void attachPhoto(String objectKey, Instant uploadedAt) {

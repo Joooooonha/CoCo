@@ -43,6 +43,10 @@ class S3CompatibleObjectStorageTest {
                 url
         );
         assertTrue(url.contains("X-Amz-Expires=3600"), url);
+        // The signing time is part of the URL, so it drifts between responses.
+        // Clients therefore cache by the upload timestamp, not by this URL.
+        assertTrue(url.contains("X-Amz-Date="), url);
+        assertTrue(url.contains("X-Amz-Signature="), url);
     }
 
     @Test
