@@ -62,9 +62,19 @@ final class RoutePlannerStore {
     private(set) var submissionErrorMessage: String?
     @ObservationIgnored private var routeTask: Task<Void, Never>?
     @ObservationIgnored private let apiClient: CourseAPIClient
+    @ObservationIgnored private let calculator: any WalkingRouteCalculator
 
-    init(apiClient: CourseAPIClient = CourseAPIClient()) {
+    /// One entry per leg between adjacent waypoints; `nil` means not resolved yet.
+    /// Keeping resolved legs means adding a waypoint only costs one request
+    /// instead of recomputing the whole route.
+    @ObservationIgnored private var segments: [RouteSegment?] = []
+
+    init(
+        apiClient: CourseAPIClient = CourseAPIClient(),
+        calculator: any WalkingRouteCalculator = MapKitWalkingRouteCalculator()
+    ) {
         self.apiClient = apiClient
+        self.calculator = calculator
     }
 
     var canAddWaypoint: Bool {
@@ -100,6 +110,7 @@ final class RoutePlannerStore {
     func loadImportedRoute(_ gpxRoute: GPXRoute) {
         routeTask?.cancel()
         waypoints.removeAll()
+        segments.removeAll()
         elementDrafts.removeAll()
 
         var cumulativeMeters: [Double] = []
@@ -131,25 +142,26 @@ final class RoutePlannerStore {
     func addWaypoint(_ coordinate: CLLocationCoordinate2D) {
         guard canAddWaypoint else { return }
         waypoints.append(coordinate)
-        recalculateRoute()
+        waypointsDidChange()
     }
 
     func closeLoopToStart() {
         guard let start = waypoints.first, waypoints.count >= 2, !isClosedLoop, canAddWaypoint else { return }
         waypoints.append(start)
-        recalculateRoute()
+        waypointsDidChange()
     }
 
     func removeLastWaypoint() {
         guard !waypoints.isEmpty else { return }
         waypoints.removeLast()
-        recalculateRoute()
+        waypointsDidChange()
     }
 
     func clearRoute() {
-        waypoints.removeAll()
-        elementDrafts.removeAll()
         routeTask?.cancel()
+        waypoints.removeAll()
+        segments.removeAll()
+        elementDrafts.removeAll()
         routeState = .idle
         routeOrigin = .mapKitPlanning
     }
@@ -162,8 +174,9 @@ final class RoutePlannerStore {
         submissionErrorMessage = nil
     }
 
+    /// Resumes from the first unresolved leg; already resolved legs are kept.
     func retryRouteCalculation() {
-        recalculateRoute()
+        startProcessingSegments()
     }
 
     var canSubmit: Bool {
@@ -237,55 +250,93 @@ final class RoutePlannerStore {
         }
     }
 
-    private func recalculateRoute() {
-        routeTask?.cancel()
+    /// Aligns the leg cache with the waypoint list and resumes calculation.
+    /// Removing a waypoint drops its leg without issuing any request.
+    private func waypointsDidChange() {
         elementDrafts.removeAll()
+        resizeSegments()
+        startProcessingSegments()
+    }
+
+    private func resizeSegments() {
+        let requiredCount = max(0, waypoints.count - 1)
+        if segments.count > requiredCount {
+            segments.removeLast(segments.count - requiredCount)
+        } else if segments.count < requiredCount {
+            segments.append(contentsOf: Array(repeating: nil, count: requiredCount - segments.count))
+        }
+    }
+
+    private func startProcessingSegments() {
+        routeTask?.cancel()
 
         guard waypoints.count >= 2 else {
             routeState = .idle
             return
         }
 
-        routeState = .calculating
-        let waypointSnapshot = waypoints
+        publishRouteState()
         routeTask = Task { [weak self] in
+            await self?.processPendingSegments()
+        }
+    }
+
+    /// Resolves legs that have no cached result, one at a time and in order.
+    /// Already resolved legs are skipped, so a rapid series of taps still costs
+    /// one request per new leg.
+    private func processPendingSegments() async {
+        while let index = segments.firstIndex(where: { $0 == nil }) {
+            if Task.isCancelled { return }
+
+            guard index + 1 < waypoints.count else { return }
+            let origin = waypoints[index]
+            let destination = waypoints[index + 1]
+
             do {
-                let route = try await Self.calculateWalkingRoute(through: waypointSnapshot)
-                guard !Task.isCancelled else { return }
-                self?.routeState = .ready(route)
+                let segment = try await calculator.calculateSegment(from: origin, to: destination)
+                if Task.isCancelled { return }
+                // The list can shrink while a request is in flight.
+                guard index < segments.count else { return }
+                segments[index] = segment
+                publishRouteState()
             } catch is CancellationError {
                 return
             } catch {
-                guard !Task.isCancelled else { return }
-                self?.routeState = .failed(message: "보행 경로를 계산하지 못했어요. 지점을 조정하거나 다시 시도해 주세요.")
+                if Task.isCancelled { return }
+                routeState = .failed(
+                    message: "보행 경로를 계산하지 못했어요. 지점을 조정하거나 다시 시도해 주세요."
+                )
+                return
             }
         }
     }
 
-    private static func calculateWalkingRoute(through waypoints: [CLLocationCoordinate2D]) async throws -> PlannedRoute {
+    private func publishRouteState() {
+        guard waypoints.count >= 2 else {
+            routeState = .idle
+            return
+        }
+
+        let resolved = segments.compactMap { $0 }
+        routeState = resolved.count == segments.count ? .ready(merge(resolved)) : .calculating
+    }
+
+    /// Joins resolved legs into one route. Purely local, so it is safe to redo
+    /// whenever the cache changes.
+    private func merge(_ resolvedSegments: [RouteSegment]) -> PlannedRoute {
         var combinedCoordinates: [CLLocationCoordinate2D] = []
         var totalDistance = 0.0
         var totalDuration = 0.0
 
-        for (start, finish) in zip(waypoints, waypoints.dropFirst()) {
-            let request = MKDirections.Request()
-            request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
-            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: finish))
-            request.transportType = .walking
-
-            let response = try await MKDirections(request: request).calculate()
-            guard let route = response.routes.first else {
-                throw MKError(.directionsNotFound)
-            }
-
-            let segmentCoordinates = route.polyline.coordinates
+        for segment in resolvedSegments {
             if combinedCoordinates.isEmpty {
-                combinedCoordinates.append(contentsOf: segmentCoordinates)
+                combinedCoordinates.append(contentsOf: segment.coordinates)
             } else {
-                combinedCoordinates.append(contentsOf: segmentCoordinates.dropFirst())
+                // The first point repeats the previous leg's last point.
+                combinedCoordinates.append(contentsOf: segment.coordinates.dropFirst())
             }
-            totalDistance += route.distance
-            totalDuration += route.expectedTravelTime
+            totalDistance += segment.distanceMeters
+            totalDuration += segment.durationSeconds
         }
 
         var cumulativeMeters: [Double] = []
@@ -306,6 +357,11 @@ final class RoutePlannerStore {
         )
     }
 
+    /// Lets tests await the in-flight calculation instead of polling.
+    func waitForRouteCalculation() async {
+        await routeTask?.value
+    }
+
     private func downsampled(_ coordinates: [CLLocationCoordinate2D]) -> [CLLocationCoordinate2D] {
         let maximumPoints = 2_000
         guard coordinates.count > maximumPoints else { return coordinates }
@@ -314,13 +370,5 @@ final class RoutePlannerStore {
         return (0..<maximumPoints).map { index in
             coordinates[Int((Double(index) * stride).rounded())]
         }
-    }
-}
-
-private extension MKPolyline {
-    var coordinates: [CLLocationCoordinate2D] {
-        var result = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: pointCount)
-        getCoordinates(&result, range: NSRange(location: 0, length: pointCount))
-        return result
     }
 }

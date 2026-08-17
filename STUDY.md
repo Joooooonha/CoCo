@@ -143,3 +143,10 @@
 
 - OAuth 2.0 Authorization Code Grant와 CSRF `state` 파라미터
 - `ASWebAuthenticationSession`과 커스텀 URL 스킴 콜백
+
+## 2026-08-17 - Phase 9 M2
+
+### 학습 키워드
+
+- 의존성 주입으로 네트워크 호출 횟수를 테스트에서 검증하기
+- `MKDirections`가 출발·도착 두 점만 받는 제약과 구간 분할 계산
