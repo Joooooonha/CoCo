@@ -472,6 +472,8 @@ private struct CourseRow: View {
                                 Text(course.difficulty.displayName)
                                     .font(.caption2.weight(.semibold))
                                     .foregroundStyle(.secondary)
+
+                                RouteSourceBadge(routeSource: course.routeSource)
                             }
 
                             Text("\(course.ownerName) · \(course.locationLabel)")
@@ -523,7 +525,8 @@ private struct CourseRow: View {
     }
 
     private var accessibilityLabel: String {
-        "\(course.name), \(course.difficulty.displayName), \(course.ownerName), \(course.locationLabel), \(String(format: "%.1f", course.distanceKilometers))킬로미터, 약 \(course.estimatedMinutes)분"
+        let source = course.routeSource.badgeLabel.map { ", \($0)" } ?? ""
+        return "\(course.name), \(course.difficulty.displayName)\(source), \(course.ownerName), \(course.locationLabel), \(String(format: "%.1f", course.distanceKilometers))킬로미터, 약 \(course.estimatedMinutes)분"
     }
 }
 

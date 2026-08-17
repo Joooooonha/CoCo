@@ -225,6 +225,8 @@ private struct LibraryCourseRow: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
 
+                RouteSourceBadge(routeSource: course.routeSource)
+
                 Spacer(minLength: 8)
 
                 if course.isScrapped {
