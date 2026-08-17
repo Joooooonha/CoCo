@@ -130,6 +130,23 @@ struct RegisterView: View {
                 if let route = planner.routeState.plannedRoute {
                     MapPolyline(coordinates: route.coordinates)
                         .stroke(.green, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                } else {
+                    // While legs are still resolving, only the parts with a real
+                    // walking path are drawn solid.
+                    ForEach(Array(planner.resolvedPolylines.enumerated()), id: \.offset) { _, coordinates in
+                        MapPolyline(coordinates: coordinates)
+                            .stroke(.green, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    }
+                }
+
+                // Legs with no walking path are shown as a dashed straight line so
+                // the user can see which pair of points needs fixing.
+                ForEach(Array(planner.failedConnections.enumerated()), id: \.offset) { _, connection in
+                    MapPolyline(coordinates: [connection.start, connection.end])
+                        .stroke(
+                            .red,
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [8, 8])
+                        )
                 }
 
                 ForEach(Array(planner.waypoints.enumerated()), id: \.offset) { index, coordinate in
@@ -180,11 +197,20 @@ struct RegisterView: View {
             case .calculating:
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("보행 경로를 계산하는 중")
+
+                    Text(calculatingDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .accessibilityElement(children: .combine)
+
+                    Spacer(minLength: 4)
+
+                    Button("취소") {
+                        planner.cancelRouteCalculation()
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.bordered)
                 }
-                .accessibilityElement(children: .combine)
             case .ready(let route):
                 Text(
                     planner.routeOrigin == .importedGPX
@@ -203,16 +229,25 @@ struct RegisterView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             case .failed(let message):
-                HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(message)
                         .font(.caption)
                         .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Button("다시 계산") {
-                        planner.retryRouteCalculation()
+                    HStack(spacing: 8) {
+                        if planner.resolvedSegmentCount > 0 {
+                            Text("\(planner.resolvedSegmentCount)/\(planner.totalSegmentCount) 구간 완료")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button("다시 계산") {
+                            planner.retryRouteCalculation()
+                        }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.bordered)
                     }
-                    .font(.caption.weight(.semibold))
-                    .buttonStyle(.bordered)
                 }
             }
 
@@ -243,6 +278,14 @@ struct RegisterView: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial)
+    }
+
+    /// Shows how far the calculation has gotten once there is more than one leg,
+    /// so a long route does not look stalled.
+    private var calculatingDescription: String {
+        planner.totalSegmentCount > 1
+            ? "보행 경로 계산 중 \(planner.resolvedSegmentCount)/\(planner.totalSegmentCount)"
+            : "보행 경로를 계산하는 중"
     }
 
     @ViewBuilder

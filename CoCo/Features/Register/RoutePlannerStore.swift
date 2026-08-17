@@ -44,6 +44,20 @@ enum RouteOrigin {
     case importedGPX
 }
 
+/// Resolution state of a single leg between two adjacent waypoints.
+enum RouteSegmentState: Equatable {
+    case pending
+    case resolved(RouteSegment)
+    case failed
+
+    var segment: RouteSegment? {
+        if case .resolved(let segment) = self {
+            return segment
+        }
+        return nil
+    }
+}
+
 @MainActor
 @Observable
 final class RoutePlannerStore {
@@ -64,10 +78,16 @@ final class RoutePlannerStore {
     @ObservationIgnored private let apiClient: CourseAPIClient
     @ObservationIgnored private let calculator: any WalkingRouteCalculator
 
-    /// One entry per leg between adjacent waypoints; `nil` means not resolved yet.
-    /// Keeping resolved legs means adding a waypoint only costs one request
-    /// instead of recomputing the whole route.
-    @ObservationIgnored private var segments: [RouteSegment?] = []
+    /// One entry per leg between adjacent waypoints. Keeping resolved legs means
+    /// adding a waypoint only costs one request instead of recomputing the route,
+    /// and a leg that fails does not discard the legs that already succeeded.
+    private(set) var segments: [RouteSegmentState] = []
+
+    /// Attempts per leg before it is marked failed, and the base backoff between them.
+    private static let maximumSegmentAttempts = 3
+    private static let retryBackoff: Duration = .milliseconds(600)
+    /// Apple throttles bursts of direction requests, so that case waits longer.
+    private static let throttledBackoff: Duration = .seconds(3)
 
     init(
         apiClient: CourseAPIClient = CourseAPIClient(),
@@ -174,9 +194,60 @@ final class RoutePlannerStore {
         submissionErrorMessage = nil
     }
 
-    /// Resumes from the first unresolved leg; already resolved legs are kept.
+    /// Puts failed legs back in the queue and resumes. Resolved legs are kept, so
+    /// a retry only re-requests what is actually missing.
     func retryRouteCalculation() {
+        for index in segments.indices where segments[index] == .failed {
+            segments[index] = .pending
+        }
         startProcessingSegments()
+    }
+
+    /// Stops the in-flight calculation and leaves the remaining legs pending so
+    /// the user can retry or adjust the waypoints.
+    func cancelRouteCalculation() {
+        routeTask?.cancel()
+        routeTask = nil
+        publishRouteState()
+    }
+
+    var totalSegmentCount: Int {
+        segments.count
+    }
+
+    var resolvedSegmentCount: Int {
+        segments.count { $0.segment != nil }
+    }
+
+    /// Waypoint pairs whose walking path could not be resolved. The register map
+    /// draws these so the user can see exactly which points to fix.
+    var failedConnections: [(start: CLLocationCoordinate2D, end: CLLocationCoordinate2D)] {
+        segments.indices.compactMap { index in
+            guard segments[index] == .failed, index + 1 < waypoints.count else { return nil }
+            return (waypoints[index], waypoints[index + 1])
+        }
+    }
+
+    /// Contiguous runs of resolved legs. Drawing each run separately keeps the
+    /// map honest: no line is drawn across a leg that has no real path.
+    var resolvedPolylines: [[CLLocationCoordinate2D]] {
+        var polylines: [[CLLocationCoordinate2D]] = []
+        var current: [CLLocationCoordinate2D] = []
+
+        for state in segments {
+            guard let segment = state.segment else {
+                if current.count >= 2 { polylines.append(current) }
+                current = []
+                continue
+            }
+            if current.isEmpty {
+                current.append(contentsOf: segment.coordinates)
+            } else {
+                current.append(contentsOf: segment.coordinates.dropFirst())
+            }
+        }
+        if current.count >= 2 { polylines.append(current) }
+        return polylines
     }
 
     var canSubmit: Bool {
@@ -263,7 +334,7 @@ final class RoutePlannerStore {
         if segments.count > requiredCount {
             segments.removeLast(segments.count - requiredCount)
         } else if segments.count < requiredCount {
-            segments.append(contentsOf: Array(repeating: nil, count: requiredCount - segments.count))
+            segments.append(contentsOf: Array(repeating: .pending, count: requiredCount - segments.count))
         }
     }
 
@@ -281,34 +352,57 @@ final class RoutePlannerStore {
         }
     }
 
-    /// Resolves legs that have no cached result, one at a time and in order.
-    /// Already resolved legs are skipped, so a rapid series of taps still costs
-    /// one request per new leg.
+    /// Resolves pending legs one at a time and in order. Already resolved legs
+    /// are skipped, and a leg that keeps failing is marked so the remaining legs
+    /// still get their chance instead of the whole route being discarded.
     private func processPendingSegments() async {
-        while let index = segments.firstIndex(where: { $0 == nil }) {
+        while let index = segments.firstIndex(of: .pending) {
             if Task.isCancelled { return }
 
             guard index + 1 < waypoints.count else { return }
             let origin = waypoints[index]
             let destination = waypoints[index + 1]
 
+            let resolved = await resolveSegment(from: origin, to: destination)
+            if Task.isCancelled { return }
+            // The list can shrink while a request is in flight.
+            guard index < segments.count, segments[index] == .pending else { continue }
+
+            segments[index] = resolved.map { RouteSegmentState.resolved($0) } ?? .failed
+            publishRouteState()
+        }
+    }
+
+    /// Retries a single leg with a growing delay before giving up on it.
+    private func resolveSegment(
+        from origin: CLLocationCoordinate2D,
+        to destination: CLLocationCoordinate2D
+    ) async -> RouteSegment? {
+        for attempt in 0..<Self.maximumSegmentAttempts {
+            if Task.isCancelled { return nil }
+
             do {
-                let segment = try await calculator.calculateSegment(from: origin, to: destination)
-                if Task.isCancelled { return }
-                // The list can shrink while a request is in flight.
-                guard index < segments.count else { return }
-                segments[index] = segment
-                publishRouteState()
+                return try await calculator.calculateSegment(from: origin, to: destination)
             } catch is CancellationError {
-                return
+                return nil
             } catch {
-                if Task.isCancelled { return }
-                routeState = .failed(
-                    message: "보행 경로를 계산하지 못했어요. 지점을 조정하거나 다시 시도해 주세요."
-                )
-                return
+                let isLastAttempt = attempt == Self.maximumSegmentAttempts - 1
+                if isLastAttempt { return nil }
+
+                let base = isThrottled(error) ? Self.throttledBackoff : Self.retryBackoff
+                let backoff = base * Int(pow(2.0, Double(attempt)))
+                do {
+                    try await Task.sleep(for: backoff)
+                } catch {
+                    return nil
+                }
             }
         }
+        return nil
+    }
+
+    private func isThrottled(_ error: any Error) -> Bool {
+        (error as? MKError)?.code == .loadingThrottled
     }
 
     private func publishRouteState() {
@@ -317,8 +411,21 @@ final class RoutePlannerStore {
             return
         }
 
-        let resolved = segments.compactMap { $0 }
-        routeState = resolved.count == segments.count ? .ready(merge(resolved)) : .calculating
+        if segments.contains(.pending) {
+            routeState = .calculating
+            return
+        }
+
+        let resolvedSegments = segments.compactMap(\.segment)
+        if resolvedSegments.count == segments.count {
+            routeState = .ready(merge(resolvedSegments))
+            return
+        }
+
+        let failedCount = segments.count - resolvedSegments.count
+        routeState = .failed(
+            message: "구간 \(failedCount)개의 보행 경로를 찾지 못했어요. 해당 지점을 옮기거나 지운 뒤 다시 시도해 주세요."
+        )
     }
 
     /// Joins resolved legs into one route. Purely local, so it is safe to redo
