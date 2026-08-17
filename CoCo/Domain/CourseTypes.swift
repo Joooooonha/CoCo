@@ -51,5 +51,16 @@ enum RouteSource: String, Codable, Sendable {
     case plannedMapKit = "PLANNED_MAPKIT"
     case recordedGPS = "RECORDED_GPS"
     case importedGPX = "IMPORTED_GPX"
+    case drawnFreehand = "DRAWN_FREEHAND"
     case plannedKakao = "PLANNED_KAKAO"
+
+    /// Freehand routes skip road snapping, so the app tells other runners where
+    /// the line came from instead of hiding it.
+    var badgeLabel: String? {
+        switch self {
+        case .drawnFreehand: "직접 그린 경로"
+        case .importedGPX: "가져온 경로"
+        case .plannedMapKit, .recordedGPS, .plannedKakao: nil
+        }
+    }
 }

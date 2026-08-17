@@ -275,16 +275,48 @@ class ApiIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ROUTE_POINTS_INVALID"));
 
-        String recordedSource = validCourseJson("기록 소스 코스").replace(
-                "PLANNED_MAPKIT",
-                "RECORDED_GPS"
-        );
-        mockMvc.perform(post("/api/v1/courses")
-                        .header(HttpHeaders.AUTHORIZATION, authorization)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(recordedSource))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("ROUTE_SOURCE_UNSUPPORTED"));
+        // Sources the client cannot produce yet stay rejected.
+        for (String unsupported : new String[] {"RECORDED_GPS", "PLANNED_KAKAO"}) {
+            String body = validCourseJson("미지원 소스 코스").replace("PLANNED_MAPKIT", unsupported);
+            mockMvc.perform(post("/api/v1/courses")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("ROUTE_SOURCE_UNSUPPORTED"));
+        }
+    }
+
+    @Test
+    void freehandCourseIsAcceptedAndKeepsItsSource() throws Exception {
+        String authorization = issueGuestAuthorization();
+        UUID courseId = null;
+
+        try {
+            String freehandCourse = validCourseJson("자유 그리기 코스")
+                    .replace("PLANNED_MAPKIT", "DRAWN_FREEHAND");
+
+            String createdBody = mockMvc.perform(post("/api/v1/courses")
+                            .header(HttpHeaders.AUTHORIZATION, authorization)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(freehandCourse))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.routeSource").value("DRAWN_FREEHAND"))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            courseId = UUID.fromString(objectMapper.readTree(createdBody).get("id").asText());
+
+            // The source survives a round trip so the app can badge it.
+            mockMvc.perform(get("/api/v1/courses/" + courseId)
+                            .header(HttpHeaders.AUTHORIZATION, authorization))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.routeSource").value("DRAWN_FREEHAND"));
+        } finally {
+            if (courseId != null) {
+                courseRepository.deleteById(courseId);
+            }
+        }
     }
 
     @Test
