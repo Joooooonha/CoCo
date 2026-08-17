@@ -105,6 +105,9 @@ jobs:
       id-token: write
 
     steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
       - name: Connect to the deployment tailnet
         uses: tailscale/github-action@v4
         with:
@@ -121,6 +124,19 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/coco_deploy
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/coco_deploy ~/.ssh/known_hosts
+
+      # Operations files are not part of the image, so they are pushed before the
+      # deploy step. The Mac mini decides which of them may be replaced.
+      - name: Sync operations files
+        run: |
+          tar czf - compose.production.yaml \
+            | ssh \
+              -i ~/.ssh/coco_deploy \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              joonha@100.117.201.13 \
+              "sync-ops"
 
       - name: Deploy immutable API image
         run: |

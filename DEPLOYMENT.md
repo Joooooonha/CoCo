@@ -186,10 +186,23 @@ Debug의 `http://localhost:8080`은 MacBook 로컬 개발용으로 유지한다.
 
 `COCO_CD_ENABLED=true`인 경우 publish job 성공 후 deploy job이 이어서 실행된다.
 
+### 무엇이 자동으로 배포되고 무엇이 수동인가
+
+| 대상 | 전달 방식 | 자동 여부 |
+|---|---|---|
+| 애플리케이션 코드(JAR) | GHCR 이미지 | 자동 |
+| `compose.production.yaml` | 배포 job의 `sync-ops` 단계 | 자동 |
+| `.env.production` (비밀값) | Mac mini에서 직접 편집 | 수동. Git에 두지 않는다 |
+| `scripts/*.sh`, systemd 유닛, sshd 드롭인 | `scp` 또는 배포 번들 | 수동 |
+
+호스트에서 실행되는 스크립트와 systemd 유닛은 배포 경로의 보안 경계 자체이므로 의도적으로 자동 동기화 대상에서 제외한다. 이 파일들을 바꾸면 Mac mini에 직접 전송하고 `chmod +x`를 확인한다.
+
+`sync-ops`는 `scripts/sync-ops.sh`의 허용 목록에 있는 파일만 교체한다. 무엇을 덮어쓸 수 있는지는 푸시된 내용이 아니라 Mac mini가 결정한다. 새 compose 파일은 현재 `.env.production`으로 `docker compose config` 검증을 통과해야 하며, 실패하면 기존 파일을 유지한다. 교체 시 직전 파일은 `compose.production.yaml.previous`로 남는다.
+
 1. GitHub Actions가 Tailscale Workload Identity로 `tag:ci` 임시 노드를 만든다.
 2. `tag:ci`는 Tailscale 정책에서 `coco-mac-mini:22`만 접근할 수 있다.
 3. GitHub 전용 SSH 키는 Mac mini의 `authorized_keys`에서 강제 명령으로 제한된다.
-4. workflow는 `deploy sha-<커밋>`만 전달할 수 있다.
+4. workflow는 `sync-ops`와 `deploy sha-<커밋>` 두 명령만 전달할 수 있다.
 5. `deploy-api.sh`는 immutable 이미지를 pull하고 이미지 revision 라벨을 커밋 SHA와 대조한다.
 6. API가 healthy가 아니면 이전 로컬 이미지 digest로 자동 롤백한다.
 
