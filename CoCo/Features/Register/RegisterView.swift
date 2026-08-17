@@ -10,6 +10,11 @@ struct RegisterView: View {
     @State private var hasAutoFittedCamera = false
     @State private var showsGPXImporter = false
     @State private var importErrorMessage: String?
+    @State private var usesSatelliteView = false
+    @State private var pendingMode: RoutePlanMode?
+    /// The drag in progress, drawn live before it becomes a stroke.
+    @State private var activeStroke: [CLLocationCoordinate2D] = []
+    @State private var lastSampledPoint: CGPoint?
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.537, longitude: 126.976),
@@ -24,6 +29,18 @@ struct RegisterView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            usesSatelliteView.toggle()
+                        } label: {
+                            Label(
+                                usesSatelliteView ? "기본 지도" : "위성 지도",
+                                systemImage: usesSatelliteView ? "map" : "globe.asia.australia"
+                            )
+                        }
+                        .accessibilityHint("경로가 강이나 건물 위를 지나지 않는지 확인합니다")
+                    }
+
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             showsGPXImporter = true
@@ -32,6 +49,24 @@ struct RegisterView: View {
                         }
                         .accessibilityHint("파일 앱에서 GPX 경로 파일을 가져옵니다")
                     }
+                }
+                .confirmationDialog(
+                    "지금까지 만든 경로가 지워져요",
+                    isPresented: Binding(
+                        get: { pendingMode != nil },
+                        set: { if !$0 { pendingMode = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("경로 지우고 전환", role: .destructive) {
+                        if let pendingMode {
+                            planner.setMode(pendingMode)
+                        }
+                        pendingMode = nil
+                    }
+                    Button("취소", role: .cancel) { pendingMode = nil }
+                } message: {
+                    Text("지점 찍기와 자유 그리기는 함께 쓸 수 없어요.")
                 }
                 .fileImporter(
                     isPresented: $showsGPXImporter,
@@ -110,6 +145,36 @@ struct RegisterView: View {
         }
     }
 
+    /// Samples the drag every few points so a long stroke stays a manageable
+    /// number of coordinates instead of one per touch event.
+    private func drawGesture(proxy: MapProxy) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let point = value.location
+                if let lastSampledPoint,
+                   hypot(point.x - lastSampledPoint.x, point.y - lastSampledPoint.y) < 8 {
+                    return
+                }
+                guard let coordinate = proxy.convert(point, from: .local) else { return }
+                lastSampledPoint = point
+                activeStroke.append(coordinate)
+            }
+            .onEnded { _ in
+                planner.appendDrawnStroke(activeStroke)
+                activeStroke = []
+                lastSampledPoint = nil
+            }
+    }
+
+    private func requestMode(_ newMode: RoutePlanMode) {
+        guard newMode != planner.mode else { return }
+        if planner.hasPlanningContent {
+            pendingMode = newMode
+        } else {
+            planner.setMode(newMode)
+        }
+    }
+
     private func fittedRegion(for coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
         let latitudes = coordinates.map(\.latitude)
         let longitudes = coordinates.map(\.longitude)
@@ -126,7 +191,15 @@ struct RegisterView: View {
 
     private var plannerMap: some View {
         MapReader { proxy in
-            Map(position: $position) {
+            // Panning is disabled while drawing so a drag means "draw", not "move".
+            Map(
+                position: $position,
+                interactionModes: planner.mode == .freehand ? [] : .all
+            ) {
+                if !activeStroke.isEmpty {
+                    MapPolyline(coordinates: activeStroke)
+                        .stroke(.green, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                }
                 if let route = planner.routeState.plannedRoute {
                     MapPolyline(coordinates: route.coordinates)
                         .stroke(.green, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
@@ -170,20 +243,38 @@ struct RegisterView: View {
                     }
                 }
             }
-            .mapStyle(.standard(elevation: .flat, emphasis: .muted))
+            // Imagery makes it obvious when a drawn line crosses water or a building.
+            .mapStyle(
+                usesSatelliteView
+                    ? .hybrid(elevation: .flat)
+                    : .standard(elevation: .flat, emphasis: .muted)
+            )
             .mapControls {
                 MapCompass()
                 MapScaleView()
             }
             .onTapGesture { screenPoint in
-                guard let coordinate = proxy.convert(screenPoint, from: .local) else { return }
+                guard planner.mode == .waypoints,
+                      let coordinate = proxy.convert(screenPoint, from: .local) else { return }
                 planner.addWaypoint(coordinate)
             }
+            .gesture(drawGesture(proxy: proxy), isEnabled: planner.mode == .freehand)
         }
     }
 
     private var plannerControls: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if planner.routeOrigin != .importedGPX {
+                Picker("경로 만드는 방식", selection: Binding(
+                    get: { planner.mode },
+                    set: { requestMode($0) }
+                )) {
+                    Text("지점 찍기").tag(RoutePlanMode.waypoints)
+                    Text("직접 그리기").tag(RoutePlanMode.freehand)
+                }
+                .pickerStyle(.segmented)
+            }
+
             Text(planner.nextTapDescription)
                 .font(.subheadline.weight(.semibold))
 
@@ -212,22 +303,9 @@ struct RegisterView: View {
                     .buttonStyle(.bordered)
                 }
             case .ready(let route):
-                Text(
-                    planner.routeOrigin == .importedGPX
-                        ? String(
-                            format: "%.1f km · 약 %d분 · GPX 경로",
-                            Double(route.distanceMeters) / 1_000,
-                            Int(ceil(Double(route.durationSeconds) / 60))
-                        )
-                        : String(
-                            format: "%.1f km · 약 %d분 · 지점 %d개",
-                            Double(route.distanceMeters) / 1_000,
-                            Int(ceil(Double(route.durationSeconds) / 60)),
-                            planner.waypoints.count
-                        )
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text(routeSummary(for: route))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             case .failed(let message):
                 VStack(alignment: .leading, spacing: 6) {
                     Text(message)
@@ -280,6 +358,30 @@ struct RegisterView: View {
         .background(.regularMaterial)
     }
 
+    private func routeSummary(for route: PlannedRoute) -> String {
+        let kilometres = Double(route.distanceMeters) / 1_000
+        let minutes = Int(ceil(Double(route.durationSeconds) / 60))
+
+        switch planner.routeOrigin {
+        case .importedGPX:
+            return String(format: "%.1f km · 약 %d분 · GPX 경로", kilometres, minutes)
+        case .drawnFreehand:
+            // The time is an estimate from an average pace, not a routed value.
+            return String(
+                format: "%.1f km · 약 %d분 예상 · 직접 그린 경로",
+                kilometres,
+                minutes
+            )
+        case .mapKitPlanning:
+            return String(
+                format: "%.1f km · 약 %d분 · 지점 %d개",
+                kilometres,
+                minutes,
+                planner.waypoints.count
+            )
+        }
+    }
+
     /// Shows how far the calculation has gotten once there is more than one leg,
     /// so a long route does not look stalled.
     private var calculatingDescription: String {
@@ -291,13 +393,17 @@ struct RegisterView: View {
     @ViewBuilder
     private var planningButtons: some View {
         Button {
-            planner.removeLastWaypoint()
+            if planner.mode == .freehand {
+                planner.undoLastStroke()
+            } else {
+                planner.removeLastWaypoint()
+            }
         } label: {
             Label("되돌리기", systemImage: "arrow.uturn.backward")
                 .frame(minHeight: 28)
         }
         .buttonStyle(.bordered)
-        .disabled(planner.waypoints.isEmpty)
+        .disabled(planner.mode == .freehand ? planner.drawnStrokes.isEmpty : planner.waypoints.isEmpty)
 
         Button {
             planner.closeLoopToStart()

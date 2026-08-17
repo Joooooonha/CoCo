@@ -42,6 +42,23 @@ struct ElementDraft: Identifiable, Equatable {
 enum RouteOrigin {
     case mapKitPlanning
     case importedGPX
+    case drawnFreehand
+
+    var routeSource: RouteSource {
+        switch self {
+        case .mapKitPlanning: .plannedMapKit
+        case .importedGPX: .importedGPX
+        case .drawnFreehand: .drawnFreehand
+        }
+    }
+}
+
+/// How the user is building the route right now.
+enum RoutePlanMode: Equatable {
+    /// Tap points and let MapKit resolve the walking path between them.
+    case waypoints
+    /// Draw the line directly, with no snapping to roads.
+    case freehand
 }
 
 /// Resolution state of a single leg between two adjacent waypoints.
@@ -70,6 +87,11 @@ final class RoutePlannerStore {
     private(set) var waypoints: [CLLocationCoordinate2D] = []
     private(set) var routeState: RoutePlanState = .idle
     private(set) var routeOrigin: RouteOrigin = .mapKitPlanning
+    private(set) var mode: RoutePlanMode = .waypoints
+
+    /// Each stroke is one uninterrupted drag. Lifting the finger to pan the map
+    /// and drawing again appends another stroke to the same route.
+    private(set) var drawnStrokes: [[CLLocationCoordinate2D]] = []
     var elementDrafts: [ElementDraft] = []
     var courseName = ""
     var courseSummary = ""
@@ -100,16 +122,19 @@ final class RoutePlannerStore {
     }
 
     var canAddWaypoint: Bool {
-        routeOrigin == .mapKitPlanning && waypoints.count < Self.maximumWaypoints
+        mode == .waypoints && routeOrigin == .mapKitPlanning && waypoints.count < Self.maximumWaypoints
     }
 
     var canContinueToDetails: Bool {
         guard routeState.plannedRoute != nil else { return false }
-        return routeOrigin == .importedGPX || waypoints.count >= 2
+        switch routeOrigin {
+        case .importedGPX, .drawnFreehand: return true
+        case .mapKitPlanning: return waypoints.count >= 2
+        }
     }
 
     var hasPlanningContent: Bool {
-        !waypoints.isEmpty || routeState.plannedRoute != nil
+        !waypoints.isEmpty || !drawnStrokes.isEmpty || routeState.plannedRoute != nil
     }
 
     var isClosedLoop: Bool {
@@ -121,6 +146,11 @@ final class RoutePlannerStore {
     var nextTapDescription: String {
         if routeOrigin == .importedGPX {
             return "가져온 GPX 경로를 확인하세요"
+        }
+        if mode == .freehand {
+            return drawnStrokes.isEmpty
+                ? "지도 위에 손가락으로 경로를 그리세요"
+                : "이어서 그리거나 지점 찍기로 돌아갈 수 있어요"
         }
         switch waypoints.count {
         case 0:
@@ -167,6 +197,78 @@ final class RoutePlannerStore {
         ))
     }
 
+    /// Switching modes discards the other mode's work, so the caller confirms
+    /// with the user first when `hasPlanningContent` is true.
+    func setMode(_ newMode: RoutePlanMode) {
+        guard newMode != mode else { return }
+        clearRoute()
+        mode = newMode
+    }
+
+    /// Adds one finished drag to the drawn route. No snapping happens: the line
+    /// the user drew is the route, which is what makes trails and shortcuts that
+    /// the road network does not know about expressible.
+    func appendDrawnStroke(_ coordinates: [CLLocationCoordinate2D]) {
+        guard mode == .freehand, coordinates.count >= 2 else { return }
+
+        routeTask?.cancel()
+        waypoints.removeAll()
+        segments.removeAll()
+        elementDrafts.removeAll()
+
+        drawnStrokes.append(coordinates)
+        routeOrigin = .drawnFreehand
+        publishDrawnRoute()
+    }
+
+    func undoLastStroke() {
+        guard mode == .freehand, !drawnStrokes.isEmpty else { return }
+        drawnStrokes.removeLast()
+        elementDrafts.removeAll()
+
+        if drawnStrokes.isEmpty {
+            routeOrigin = .mapKitPlanning
+            routeState = .idle
+        } else {
+            publishDrawnRoute()
+        }
+    }
+
+    private func publishDrawnRoute() {
+        let coordinates = drawnStrokes.flatMap { $0 }
+        guard coordinates.count >= 2 else {
+            routeState = .idle
+            return
+        }
+        routeState = .ready(measuredRoute(through: coordinates))
+    }
+
+    /// Distance comes from the drawn coordinates themselves and time from an
+    /// average walking pace, since no routing service is involved.
+    private func measuredRoute(through coordinates: [CLLocationCoordinate2D]) -> PlannedRoute {
+        var cumulativeMeters: [Double] = []
+        cumulativeMeters.reserveCapacity(coordinates.count)
+        var runningDistance = 0.0
+
+        for (index, coordinate) in coordinates.enumerated() {
+            if index > 0 {
+                runningDistance += MKMapPoint(coordinates[index - 1]).distance(to: MKMapPoint(coordinate))
+            }
+            cumulativeMeters.append(runningDistance)
+        }
+
+        let distanceMeters = max(1, Int(runningDistance.rounded()))
+        return PlannedRoute(
+            coordinates: coordinates,
+            cumulativeMeters: cumulativeMeters,
+            distanceMeters: distanceMeters,
+            durationSeconds: max(
+                60,
+                Int((Double(distanceMeters) / Self.fallbackWalkingSpeedMetersPerSecond).rounded())
+            )
+        )
+    }
+
     func addWaypoint(_ coordinate: CLLocationCoordinate2D) {
         guard canAddWaypoint else { return }
         waypoints.append(coordinate)
@@ -189,6 +291,7 @@ final class RoutePlannerStore {
         routeTask?.cancel()
         waypoints.removeAll()
         segments.removeAll()
+        drawnStrokes.removeAll()
         elementDrafts.removeAll()
         routeState = .idle
         routeOrigin = .mapKitPlanning
@@ -196,6 +299,7 @@ final class RoutePlannerStore {
 
     func resetAll() {
         clearRoute()
+        mode = .waypoints
         courseName = ""
         courseSummary = ""
         difficulty = .moderate
@@ -302,7 +406,7 @@ final class RoutePlannerStore {
             difficulty: difficulty,
             distanceMeters: route.distanceMeters,
             estimatedDurationSeconds: route.durationSeconds,
-            routeSource: routeOrigin == .importedGPX ? .importedGPX : .plannedMapKit,
+            routeSource: routeOrigin.routeSource,
             routePoints: routePoints,
             elements: elementDrafts.map { draft in
                 CourseCreatePayload.ElementPayload(
