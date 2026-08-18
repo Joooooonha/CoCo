@@ -2,10 +2,13 @@ import UIKit
 
 /// Prepares a picked photo for upload.
 ///
-/// Redrawing the image into a fresh bitmap is what removes the original
-/// metadata: nothing is copied over, so the capture location and time cannot
-/// survive. It also bakes in the orientation, so no orientation tag is needed
-/// in the result either.
+/// Redrawing the image into a fresh bitmap is what sheds the original
+/// metadata: only pixels are carried across, so the capture location, capture
+/// time and camera model cannot survive. The result is not metadata-free —
+/// the JPEG encoder writes its own small EXIF block describing the bitmap
+/// (dimensions, color space, resolution) — but nothing in it identifies the
+/// photographer, the device or the moment. Orientation is baked into the
+/// pixels along the way.
 struct ElementPhotoProcessor {
     struct Output: Equatable, Sendable {
         let data: Data
@@ -56,7 +59,7 @@ struct ElementPhotoProcessor {
     }
 
     /// Runs even when the image already fits, because the redraw is the step
-    /// that strips metadata rather than an optimization.
+    /// that sheds the original metadata rather than an optimization.
     private static func redrawn(_ image: UIImage) -> UIImage {
         let longEdge = max(image.size.width, image.size.height)
         let ratio = longEdge > maximumLongEdge ? maximumLongEdge / longEdge : 1

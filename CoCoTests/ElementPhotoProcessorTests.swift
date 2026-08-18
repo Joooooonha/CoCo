@@ -20,6 +20,28 @@ struct ElementPhotoProcessorTests {
         #expect(locationMetadata(of: processed.data) == nil)
     }
 
+    /// Re-encoding does not produce a metadata-free file: the encoder writes a
+    /// fresh EXIF block of its own. What matters is that nothing identifying
+    /// the photographer, the device or the moment survives.
+    @Test
+    func processingRemovesEveryIdentifyingTagEvenThoughAnExifBlockRemains() throws {
+        let processed = try ElementPhotoProcessor().process(try photoCarryingIdentifyingMetadata())
+
+        let properties = imageProperties(of: processed.data)
+        #expect(properties[kCGImagePropertyGPSDictionary] == nil)
+
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+        #expect(tiff[kCGImagePropertyTIFFMake] == nil)
+        #expect(tiff[kCGImagePropertyTIFFModel] == nil)
+
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        #expect(exif[kCGImagePropertyExifDateTimeOriginal] == nil)
+        #expect(exif[kCGImagePropertyExifUserComment] == nil)
+        // The encoder's own tags are fine to keep; they describe the bitmap,
+        // not the person who took it.
+        #expect(exif[kCGImagePropertyExifPixelXDimension] != nil)
+    }
+
     @Test
     func largePhotosAreShrunkToTheLongEdgeLimit() throws {
         let data = try jpeg(width: 4_032, height: 3_024)
@@ -40,8 +62,8 @@ struct ElementPhotoProcessorTests {
         #expect(processed.pixelSize.width == 1_200)
     }
 
-    /// Small photos still go through the redraw, because that is what drops the
-    /// metadata. Only their dimensions are left alone.
+    /// Small photos still go through the redraw, because that is what sheds the
+    /// original metadata. Only their dimensions are left alone.
     @Test
     func smallPhotosKeepTheirSizeButStillLoseMetadata() throws {
         let data = try photoCarryingLocation(width: 800, height: 600)
@@ -135,13 +157,58 @@ struct ElementPhotoProcessorTests {
     }
 
     private func locationMetadata(of data: Data) -> [CFString: Any]? {
+        imageProperties(of: data)[kCGImagePropertyGPSDictionary] as? [CFString: Any]
+    }
+
+    private func imageProperties(of data: Data) -> [CFString: Any] {
         guard
             let source = CGImageSourceCreateWithData(data as CFData, nil),
             let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
         else {
-            return nil
+            return [:]
         }
-        return properties[kCGImagePropertyGPSDictionary] as? [CFString: Any]
+        return properties
+    }
+
+    /// A photo as it comes off a phone: capture location, capture time and the
+    /// device that took it.
+    private func photoCarryingIdentifyingMetadata() throws -> Data {
+        let base = try jpeg(width: 2_400, height: 1_600)
+        guard let source = CGImageSourceCreateWithData(base as CFData, nil) else {
+            throw TestFixtureError.encodingFailed
+        }
+
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw TestFixtureError.encodingFailed
+        }
+
+        let properties: [CFString: Any] = [
+            kCGImagePropertyGPSDictionary: [
+                kCGImagePropertyGPSLatitude: 37.5665,
+                kCGImagePropertyGPSLatitudeRef: "N",
+                kCGImagePropertyGPSLongitude: 126.9780,
+                kCGImagePropertyGPSLongitudeRef: "E"
+            ],
+            kCGImagePropertyTIFFDictionary: [
+                kCGImagePropertyTIFFMake: "Apple",
+                kCGImagePropertyTIFFModel: "iPhone 16 Pro"
+            ],
+            kCGImagePropertyExifDictionary: [
+                kCGImagePropertyExifDateTimeOriginal: "2026:08:18 07:31:02",
+                kCGImagePropertyExifUserComment: "달리기 전 한 컷"
+            ]
+        ]
+        CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw TestFixtureError.encodingFailed
+        }
+        return output as Data
     }
 
     private enum TestFixtureError: Error {
