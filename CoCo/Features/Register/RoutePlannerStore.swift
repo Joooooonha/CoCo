@@ -37,6 +37,21 @@ struct ElementDraft: Identifiable, Equatable {
     var distanceFromStartMeters: Int
     var title: String
     var description: String
+    /// The photo already on the server, shown while editing.
+    var savedPhoto: SavedPhoto?
+    /// A newly picked photo, uploaded once the element itself is saved. A photo
+    /// needs a server-side element to attach to, so it cannot go up any earlier.
+    var pendingPhoto: ElementPhotoProcessor.Output?
+    var removesSavedPhoto = false
+
+    struct SavedPhoto: Equatable {
+        let url: URL
+        let uploadedAt: String
+    }
+
+    var hasVisiblePhoto: Bool {
+        pendingPhoto != nil || (savedPhoto != nil && !removesSavedPhoto)
+    }
 }
 
 enum RouteOrigin {
@@ -98,6 +113,9 @@ final class RoutePlannerStore {
     var difficulty: CourseDifficulty = .moderate
     private(set) var isSubmitting = false
     private(set) var submissionErrorMessage: String?
+    /// Set when the course itself registered but a photo did not. The course is
+    /// usable, so this is shown after registration rather than blocking it.
+    private(set) var photoWarningMessage: String?
     @ObservationIgnored private var routeTask: Task<Void, Never>?
     @ObservationIgnored private let apiClient: CourseAPIClient
     @ObservationIgnored private let calculator: any WalkingRouteCalculator
@@ -304,6 +322,7 @@ final class RoutePlannerStore {
         courseSummary = ""
         difficulty = .moderate
         submissionErrorMessage = nil
+        photoWarningMessage = nil
     }
 
     /// Puts failed legs back in the queue and resumes. Resolved legs are kept, so
@@ -421,7 +440,8 @@ final class RoutePlannerStore {
         )
 
         do {
-            return try await apiClient.createCourse(payload)
+            let course = try await apiClient.createCourse(payload)
+            return await uploadDraftPhotos(for: course)
         } catch {
             if let localizedError = error as? LocalizedError,
                let description = localizedError.errorDescription {
@@ -432,6 +452,53 @@ final class RoutePlannerStore {
             return nil
         }
     }
+
+    /// Sends the photos picked while drafting, now that the server has created
+    /// the elements they belong to.
+    ///
+    /// A course is registered in one call, so the elements only get their
+    /// identifiers back in the response. Drafts are matched to them by position
+    /// after both are ordered by distance, and each pair is checked before
+    /// uploading so a mismatch skips the photo instead of attaching it to the
+    /// wrong element.
+    private func uploadDraftPhotos(for course: Course) async -> Course {
+        let draftsWithPhotos = elementDrafts.contains { $0.pendingPhoto != nil }
+        guard draftsWithPhotos else { return course }
+
+        let orderedDrafts = elementDrafts.sorted { $0.distanceFromStartMeters < $1.distanceFromStartMeters }
+        guard orderedDrafts.count == course.elements.count else {
+            photoWarningMessage = Self.photoWarning
+            return course
+        }
+
+        var updatedCourse = course
+        var failed = false
+
+        for (draft, element) in zip(orderedDrafts, course.elements) {
+            guard let photo = draft.pendingPhoto else { continue }
+            guard draft.distanceFromStartMeters == element.distanceFromStartMeters,
+                  draft.title.trimmingCharacters(in: .whitespacesAndNewlines) == element.title else {
+                failed = true
+                continue
+            }
+
+            do {
+                let saved = try await apiClient.uploadElementPhoto(
+                    courseID: course.id,
+                    elementID: element.id,
+                    photo: photo
+                )
+                updatedCourse.upsertElement(saved)
+            } catch {
+                failed = true
+            }
+        }
+
+        photoWarningMessage = failed ? Self.photoWarning : nil
+        return updatedCourse
+    }
+
+    private static let photoWarning = "코스는 등록됐지만 일부 사진을 올리지 못했어요. 요소 수정에서 다시 추가해 주세요."
 
     /// Aligns the leg cache with the waypoint list and resumes calculation.
     /// Removing a waypoint drops its leg without issuing any request.

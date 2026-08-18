@@ -84,6 +84,113 @@ struct CourseAPIClient {
         }
     }
 
+    // MARK: - Element photos
+
+    /// Uploads a photo in the three steps the server expects: ask for a
+    /// presigned URL, send the bytes straight to storage, then confirm so the
+    /// server records the object it can verify for itself.
+    ///
+    /// `photo` must already be processed by `ElementPhotoProcessor`; the raw
+    /// bytes from the picker still carry the capture location.
+    func uploadElementPhoto(
+        courseID: UUID,
+        elementID: UUID,
+        photo: ElementPhotoProcessor.Output
+    ) async throws -> CourseElement {
+        let ticket = try await requestUploadTicket(
+            courseID: courseID,
+            elementID: elementID,
+            contentType: photo.contentType,
+            contentLength: photo.data.count
+        )
+        try await putToStorage(photo, using: ticket)
+        return try await confirmUpload(
+            courseID: courseID,
+            elementID: elementID,
+            contentType: photo.contentType
+        )
+    }
+
+    func deleteElementPhoto(courseID: UUID, elementID: UUID) async throws {
+        try await withAuthorization { token in
+            var request = URLRequest(url: photoEndpoint(courseID: courseID, elementID: elementID))
+            request.httpMethod = "DELETE"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await sendExpectingSuccess(request)
+        }
+    }
+
+    /// Downloads photo bytes from a presigned URL. No CoCo token is involved:
+    /// the signature in the URL is the entire authorization.
+    func fetchPhotoData(from url: URL) async throws -> Data {
+        let (data, response) = try await session.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw APIClientError.photoUnavailable
+        }
+        return data
+    }
+
+    private func requestUploadTicket(
+        courseID: UUID,
+        elementID: UUID,
+        contentType: String,
+        contentLength: Int
+    ) async throws -> PhotoUploadTicket {
+        try await withAuthorization { token in
+            var request = URLRequest(
+                url: photoEndpoint(courseID: courseID, elementID: elementID).appending(path: "upload-url")
+            )
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(
+                PhotoUploadRequest(contentType: contentType, contentLength: contentLength)
+            )
+            return try await send(request)
+        }
+    }
+
+    /// Goes straight to object storage. The CoCo token must not be attached:
+    /// storage would reject a request carrying two kinds of authorization, and
+    /// it has no business seeing our token anyway.
+    private func putToStorage(_ photo: ElementPhotoProcessor.Output, using ticket: PhotoUploadTicket) async throws {
+        guard let uploadURL = URL(string: ticket.uploadURL) else {
+            throw APIClientError.invalidResponse
+        }
+
+        var request = URLRequest(url: uploadURL)
+        request.httpMethod = "PUT"
+        // The content type is part of the signature, so a mismatch here fails
+        // with a storage-side 403 rather than anything CoCo can explain.
+        request.setValue(ticket.contentType, forHTTPHeaderField: "Content-Type")
+
+        let (_, response) = try await session.upload(for: request, from: photo.data)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw APIClientError.photoUploadRejected
+        }
+    }
+
+    private func confirmUpload(
+        courseID: UUID,
+        elementID: UUID,
+        contentType: String
+    ) async throws -> CourseElement {
+        try await withAuthorization { token in
+            var request = URLRequest(url: photoEndpoint(courseID: courseID, elementID: elementID))
+            request.httpMethod = "PUT"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(PhotoConfirmRequest(contentType: contentType))
+            return try await send(request)
+        }
+    }
+
+    private func photoEndpoint(courseID: UUID, elementID: UUID) -> URL {
+        endpoint("api/v1/courses/\(courseID.uuidString)/elements/\(elementID.uuidString)/photo")
+    }
+
     func updateDisplayName(_ displayName: String) async throws -> User {
         try await withAuthorization { token in
             var request = URLRequest(url: endpoint("api/v1/me"))
@@ -303,6 +410,21 @@ struct CourseCreatePayload: Encodable, Sendable {
     let elements: [ElementPayload]
 }
 
+private struct PhotoUploadTicket: Decodable {
+    let uploadURL: String
+    let contentType: String
+    let maxContentLength: Int
+}
+
+private struct PhotoUploadRequest: Encodable {
+    let contentType: String
+    let contentLength: Int
+}
+
+private struct PhotoConfirmRequest: Encodable {
+    let contentType: String
+}
+
 struct AuthorizeURLResponse: Decodable, Sendable {
     let authorizeUrl: String
     let redirectUri: String
@@ -342,6 +464,8 @@ private enum APIClientError: LocalizedError {
     case unauthorized
     case server(code: String?)
     case invalidPayload
+    case photoUploadRejected
+    case photoUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -349,6 +473,18 @@ private enum APIClientError: LocalizedError {
             "코스에는 요소가 1개 이상 필요해요."
         case .server(code: "COURSE_OWNER_ONLY"):
             "코스 작성자만 요소를 관리할 수 있어요."
+        case .server(code: "PHOTO_TOO_LARGE"):
+            "사진 용량이 너무 커요. 다른 사진을 선택해 주세요."
+        case .server(code: "PHOTO_CONTENT_TYPE_UNSUPPORTED"):
+            "이 형식의 사진은 올릴 수 없어요."
+        case .server(code: "PHOTO_NOT_UPLOADED"):
+            "사진 전송이 끝나지 않았어요. 다시 시도해 주세요."
+        case .server(code: "PHOTO_STORAGE_UNAVAILABLE"):
+            "사진 기능을 잠시 사용할 수 없어요. 나중에 다시 시도해 주세요."
+        case .photoUploadRejected:
+            "사진을 전송하지 못했어요. 다시 시도해 주세요."
+        case .photoUnavailable:
+            "사진을 불러오지 못했어요."
         case .invalidResponse, .server:
             "서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요."
         case .unauthorized:

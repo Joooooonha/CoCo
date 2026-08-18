@@ -138,12 +138,13 @@ final class CourseStore {
         )
 
         do {
-            let savedElement: CourseElement
+            var savedElement: CourseElement
             if isNew {
                 savedElement = try await apiClient.addElement(courseID: courseID, payload)
             } else {
                 savedElement = try await apiClient.updateElement(courseID: courseID, elementID: draft.id, payload)
             }
+            savedElement = try await applyPhotoChange(from: draft, to: savedElement, courseID: courseID)
             updateCourse(id: courseID) { $0.upsertElement(savedElement) }
             if selectedElement?.id == savedElement.id {
                 selectedElement = savedElement
@@ -154,6 +155,31 @@ final class CourseStore {
             actionErrorMessage = elementErrorMessage(for: error, fallback: "요소를 저장하지 못했어요. 다시 시도해 주세요.")
             return false
         }
+    }
+
+    /// Photos need an element on the server to attach to, so this runs after
+    /// the element itself is saved. A failure here surfaces as an error while
+    /// the text edits are already stored, which is why the message says so.
+    private func applyPhotoChange(
+        from draft: ElementDraft,
+        to element: CourseElement,
+        courseID: Course.ID
+    ) async throws -> CourseElement {
+        if let photo = draft.pendingPhoto {
+            return try await apiClient.uploadElementPhoto(
+                courseID: courseID,
+                elementID: element.id,
+                photo: photo
+            )
+        }
+        if draft.removesSavedPhoto, element.hasPhoto {
+            try await apiClient.deleteElementPhoto(courseID: courseID, elementID: element.id)
+            var withoutPhoto = element
+            withoutPhoto.photoURL = nil
+            withoutPhoto.photoUploadedAt = nil
+            return withoutPhoto
+        }
+        return element
     }
 
     func deleteElement(_ element: CourseElement) async {

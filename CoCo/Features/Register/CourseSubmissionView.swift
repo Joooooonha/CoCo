@@ -7,6 +7,10 @@ struct CourseSubmissionView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var editingDraft: ElementDraft?
+    /// Holds a registered course while the photo warning is on screen, so the
+    /// user is not dropped back to the map without being told.
+    @State private var courseAwaitingAcknowledgement: Course?
+    @State private var photoWarningMessage: String?
 
     var body: some View {
         Form {
@@ -57,6 +61,21 @@ struct CourseSubmissionView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             submitBar
         }
+        .alert(
+            "사진을 올리지 못했어요",
+            isPresented: Binding(
+                get: { photoWarningMessage != nil },
+                set: { if !$0 { photoWarningMessage = nil } }
+            )
+        ) {
+            Button("확인") {
+                if let course = courseAwaitingAcknowledgement {
+                    finish(with: course)
+                }
+            }
+        } message: {
+            Text(photoWarningMessage ?? "")
+        }
         .sheet(item: $editingDraft) { draft in
             ElementDraftEditorView(draft: draft) { updatedDraft in
                 if let index = planner.elementDrafts.firstIndex(where: { $0.id == updatedDraft.id }) {
@@ -68,6 +87,12 @@ struct CourseSubmissionView: View {
                 planner.elementDrafts.removeAll { $0.id == deletedDraft.id }
             }
         }
+    }
+
+    private func finish(with course: Course) {
+        planner.resetAll()
+        dismiss()
+        onRegistered(course)
     }
 
     private var submitBar: some View {
@@ -84,11 +109,12 @@ struct CourseSubmissionView: View {
 
             Button {
                 Task {
-                    if let course = await planner.submitCourse() {
-                        let registeredCourse = course
-                        planner.resetAll()
-                        dismiss()
-                        onRegistered(registeredCourse)
+                    guard let course = await planner.submitCourse() else { return }
+                    if let warning = planner.photoWarningMessage {
+                        courseAwaitingAcknowledgement = course
+                        photoWarningMessage = warning
+                    } else {
+                        finish(with: course)
                     }
                 }
             } label: {
