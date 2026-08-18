@@ -16,7 +16,16 @@ final class CourseStore {
     private(set) var pendingScrapCourseIDs: Set<Course.ID> = []
     private(set) var pendingReactionKeys: Set<String> = []
     private(set) var actionErrorMessage: String?
-    var selectedCourseID: Course.ID?
+    /// Changing the course always drops the element detail with it. Leaving
+    /// that to each caller is how a course registered from another tab ended up
+    /// showing the previously selected course's element in its header.
+    var selectedCourseID: Course.ID? {
+        didSet {
+            guard selectedCourseID != oldValue else { return }
+            selectedElement = nil
+            isAddingElement = false
+        }
+    }
     var selectedElement: CourseElement?
     var isAddingElement = false
     var searchText = ""
@@ -62,8 +71,6 @@ final class CourseStore {
 
     func toggleSelection(_ course: Course) {
         selectedCourseID = selectedCourseID == course.id ? nil : course.id
-        selectedElement = nil
-        isAddingElement = false
     }
 
     func showDetails(for element: CourseElement) {
@@ -101,7 +108,6 @@ final class CourseStore {
             courses = loadedCourses
             if let selectedCourseID, !courses.contains(where: { $0.id == selectedCourseID }) {
                 self.selectedCourseID = nil
-                selectedElement = nil
             }
             if let selectedElement,
                let refreshedElement = selectedCourse?.elements.first(where: { $0.id == selectedElement.id }) {
@@ -137,29 +143,45 @@ final class CourseStore {
             description: draft.description.trimmingCharacters(in: .whitespacesAndNewlines)
         )
 
+        let savedElement: CourseElement
         do {
-            var savedElement: CourseElement
             if isNew {
                 savedElement = try await apiClient.addElement(courseID: courseID, payload)
             } else {
                 savedElement = try await apiClient.updateElement(courseID: courseID, elementID: draft.id, payload)
             }
-            savedElement = try await applyPhotoChange(from: draft, to: savedElement, courseID: courseID)
-            updateCourse(id: courseID) { $0.upsertElement(savedElement) }
-            if selectedElement?.id == savedElement.id {
-                selectedElement = savedElement
-            }
-            isAddingElement = false
-            return true
         } catch {
             actionErrorMessage = elementErrorMessage(for: error, fallback: "요소를 저장하지 못했어요. 다시 시도해 주세요.")
             return false
         }
+
+        // The element is stored at this point. Applying it before the photo step
+        // keeps the shown text from drifting away from the server when only the
+        // photo fails.
+        apply(savedElement, to: courseID)
+        isAddingElement = false
+
+        do {
+            apply(try await applyPhotoChange(from: draft, to: savedElement, courseID: courseID), to: courseID)
+            return true
+        } catch {
+            actionErrorMessage = elementErrorMessage(
+                for: error,
+                fallback: "요소는 저장했지만 사진을 올리지 못했어요. 다시 시도해 주세요."
+            )
+            return false
+        }
+    }
+
+    private func apply(_ element: CourseElement, to courseID: Course.ID) {
+        updateCourse(id: courseID) { $0.upsertElement(element) }
+        if selectedElement?.id == element.id {
+            selectedElement = element
+        }
     }
 
     /// Photos need an element on the server to attach to, so this runs after
-    /// the element itself is saved. A failure here surfaces as an error while
-    /// the text edits are already stored, which is why the message says so.
+    /// the element itself is saved.
     private func applyPhotoChange(
         from draft: ElementDraft,
         to element: CourseElement,

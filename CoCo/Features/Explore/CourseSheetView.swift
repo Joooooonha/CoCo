@@ -185,6 +185,15 @@ struct CourseSheetView: View {
                         .accessibilityHint("요소를 삭제합니다")
                     }
                     .disabled(store.isSavingElement)
+
+                    // The editor sheet closes as soon as it is saved, so a
+                    // failure after that has nowhere else to appear.
+                    if let actionErrorMessage = store.actionErrorMessage {
+                        Text(actionErrorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

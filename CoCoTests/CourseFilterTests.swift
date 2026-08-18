@@ -61,3 +61,49 @@ struct CourseFilterTests {
         #expect(store.visibleCourses.first?.ownerName == "숲길메이트")
     }
 }
+
+/// Selecting a different course must not leave the previous course's element
+/// on screen. This regressed once because each caller cleared it by hand.
+@MainActor
+struct CourseSelectionTests {
+    @Test
+    func changingTheSelectedCourseDropsTheElementDetail() {
+        let store = CourseStore(courses: SeedData.courses)
+        let first = SeedData.courses[0]
+        let second = SeedData.courses[1]
+
+        store.selectedCourseID = first.id
+        store.showDetails(for: first.elements[0])
+        store.isAddingElement = true
+
+        store.selectedCourseID = second.id
+
+        #expect(store.selectedElement == nil)
+        #expect(!store.isAddingElement)
+    }
+
+    @Test
+    func reselectingTheSameCourseKeepsTheElementDetail() {
+        let store = CourseStore(courses: SeedData.courses)
+        let course = SeedData.courses[0]
+        store.selectedCourseID = course.id
+        store.showDetails(for: course.elements[0])
+
+        store.selectedCourseID = course.id
+
+        #expect(store.selectedElement != nil)
+    }
+
+    @Test
+    func deselectingClearsTheElementDetail() {
+        let store = CourseStore(courses: SeedData.courses)
+        let course = SeedData.courses[0]
+        store.selectedCourseID = course.id
+        store.showDetails(for: course.elements[0])
+
+        store.toggleSelection(course)
+
+        #expect(store.selectedCourseID == nil)
+        #expect(store.selectedElement == nil)
+    }
+}
