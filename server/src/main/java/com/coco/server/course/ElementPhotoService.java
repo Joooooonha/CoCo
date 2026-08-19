@@ -9,6 +9,7 @@ import com.coco.server.storage.ObjectStorage;
 import com.coco.server.storage.StorageUnavailableException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -95,7 +96,11 @@ public class ElementPhotoService {
         }
 
         String previousKey = element.getPhotoObjectKey();
-        element.attachPhoto(objectKey, Instant.now());
+        // Truncated to what the column can hold. The JVM clock is nanosecond
+        // precision on Linux, so without this the value returned here would not
+        // match the one a later read returns, and clients key their photo cache
+        // on exactly that value.
+        element.attachPhoto(objectKey, Instant.now().truncatedTo(ChronoUnit.MICROS));
         // Replacing a photo of a different format leaves the old object behind.
         if (previousKey != null && !previousKey.equals(objectKey)) {
             objectStorage.delete(previousKey);

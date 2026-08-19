@@ -117,9 +117,13 @@ class ElementPhotoIntegrationTest {
         JsonNode course = createCourse(authorization, "캐시 키 코스");
         String courseId = course.get("id").asText();
         String elementId = course.get("elements").get(0).get("id").asText();
-        attachPhoto(authorization, courseId, elementId);
+        String confirmedAt = attachPhoto(authorization, courseId, elementId).element().get("photoUploadedAt").asText();
 
         JsonNode firstRead = readElement(authorization, courseId);
+
+        // The confirmation response is what the client caches under, so it has
+        // to survive the round trip through the column unchanged.
+        assertEquals(confirmedAt, firstRead.get("photoUploadedAt").asText());
         JsonNode secondRead = readElement(authorization, courseId);
 
         assertEquals(
@@ -159,7 +163,7 @@ class ElementPhotoIntegrationTest {
         JsonNode course = createCourse(authorization, "사진 삭제 코스");
         String courseId = course.get("id").asText();
         String elementId = course.get("elements").get(0).get("id").asText();
-        String objectKey = attachPhoto(authorization, courseId, elementId);
+        String objectKey = attachPhoto(authorization, courseId, elementId).objectKey();
 
         mockMvc.perform(delete(photoPath(courseId, elementId)).header(HttpHeaders.AUTHORIZATION, authorization))
                 .andExpect(status().isNoContent());
@@ -180,7 +184,7 @@ class ElementPhotoIntegrationTest {
         JsonNode course = createCourse(authorization, "코스 삭제 시 사진 정리");
         String courseId = course.get("id").asText();
         String elementId = course.get("elements").get(0).get("id").asText();
-        String objectKey = attachPhoto(authorization, courseId, elementId);
+        String objectKey = attachPhoto(authorization, courseId, elementId).objectKey();
         assertTrue(storage.contains(objectKey));
 
         mockMvc.perform(delete("/api/v1/courses/" + courseId).header(HttpHeaders.AUTHORIZATION, authorization))
@@ -267,7 +271,7 @@ class ElementPhotoIntegrationTest {
         JsonNode course = createCourse(authorization, "형식 교체 코스");
         String courseId = course.get("id").asText();
         String elementId = course.get("elements").get(0).get("id").asText();
-        String jpegKey = attachPhoto(authorization, courseId, elementId);
+        String jpegKey = attachPhoto(authorization, courseId, elementId).objectKey();
 
         String ticketBody = mockMvc.perform(post(photoPath(courseId, elementId) + "/upload-url")
                         .header(HttpHeaders.AUTHORIZATION, authorization)
@@ -291,7 +295,12 @@ class ElementPhotoIntegrationTest {
         assertTrue(storage.contains(heicKey));
     }
 
-    private String attachPhoto(String authorization, String courseId, String elementId) throws Exception {
+    private record AttachedPhoto(String objectKey, JsonNode element) {
+    }
+
+    /// Returns both the stored key and the confirmation response, so callers can
+    /// check storage side effects and the payload the client caches on.
+    private AttachedPhoto attachPhoto(String authorization, String courseId, String elementId) throws Exception {
         String ticketBody = mockMvc.perform(post(photoPath(courseId, elementId) + "/upload-url")
                         .header(HttpHeaders.AUTHORIZATION, authorization)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -303,12 +312,15 @@ class ElementPhotoIntegrationTest {
         String objectKey = objectKeyOf(ticketBody);
         storage.put(objectKey, 102_400);
 
-        mockMvc.perform(put(photoPath(courseId, elementId))
+        String confirmed = mockMvc.perform(put(photoPath(courseId, elementId))
                         .header(HttpHeaders.AUTHORIZATION, authorization)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"contentType\":\"image/jpeg\"}"))
-                .andExpect(status().isOk());
-        return objectKey;
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return new AttachedPhoto(objectKey, objectMapper.readTree(confirmed));
     }
 
     private JsonNode readElement(String authorization, String courseId) throws Exception {
