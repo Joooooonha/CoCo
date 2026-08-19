@@ -290,6 +290,117 @@ ls -la ~/coco/backups/
 
 백업은 `backups/`에 생성되며 Git에서 제외된다. 복구 스크립트는 API를 중지하고 DB를 교체한 뒤 API가 다시 healthy가 될 때까지 기다린다.
 
+### 사진 오프사이트 백업 (R2 → S3)
+
+PostgreSQL 덤프에는 사진의 객체 키만 있고 이미지 바이트는 없다. R2에 유실이 생기면 DB를 복원해도 사진은 돌아오지 않으므로 사진은 별도로 백업한다.
+
+`coco-photo-sync.timer`가 매일 04:45 KST에 `sync-photos-offsite.sh`를 실행한다. R2 버킷을 S3 버킷으로 단방향 `rclone sync` 한다. S3 쪽 값이 비어 있으면 아무 일도 하지 않고 건너뛴다.
+
+#### AWS 콘솔에서
+
+1. S3 버킷을 만든다. 리전은 `ap-northeast-2`(서울), 퍼블릭 액세스는 전부 차단한 채로 둔다.
+2. 버킷 속성에서 **버전 관리를 켠다.** 아래 삭제 정책이 여기에 의존한다.
+3. 수명 주기 규칙을 추가한다. **비현행 버전을 30일 뒤 영구 삭제**한다. DB 백업 보존이 14일이므로 사진 쪽이 먼저 사라지지 않도록 더 길게 잡았다.
+4. IAM 사용자를 만들고 이 버킷에만 적용되는 정책을 붙인다.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::<버킷 이름>"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::<버킷 이름>/*"
+    }
+  ]
+}
+```
+
+5. 액세스 키를 발급한다. 시크릿은 발급 화면에서만 보인다.
+6. Billing → Budgets에서 월 $1 정도의 예산 알림을 걸어 둔다. R2와 달리 AWS는 예산 알림을 제공한다.
+
+#### Mac mini에서
+
+```bash
+sudo dnf install -y rclone
+```
+
+`.env.production`에 다음을 채운다.
+
+```dotenv
+COCO_OFFSITE_BUCKET=<S3 버킷 이름>
+COCO_OFFSITE_REGION=ap-northeast-2
+COCO_OFFSITE_ACCESS_KEY_ID=<IAM 액세스 키 ID>
+COCO_OFFSITE_SECRET_ACCESS_KEY=<IAM 시크릿 액세스 키>
+```
+
+스크립트와 유닛 파일을 새로 배포한다. MacBook에서:
+
+```bash
+./scripts/create-deployment-bundle.sh
+scp build/deployment/coco-deployment.tar.gz joonha@coco-mac-mini:~/
+```
+
+Mac mini에서:
+
+```bash
+tar -xzf ~/coco-deployment.tar.gz -C ~
+sudo install -o root -g root -m 0644 \
+  ~/coco/ops/fedora/systemd/coco-photo-sync.service \
+  ~/coco/ops/fedora/systemd/coco-photo-sync.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now coco-photo-sync.timer
+```
+
+#### 확인
+
+```bash
+~/coco/scripts/sync-photos-offsite.sh
+systemctl list-timers coco-photo-sync.timer --no-pager
+cat ~/coco/logs/photo-sync.log
+```
+
+로그는 실행마다 한 줄씩 쌓인다.
+
+```
+2026-08-19T19:45:03Z ok copied=3 deleted=0
+```
+
+대량 삭제를 막는 임계값은 두지 않았다. 임계값에 걸리면 그날 백업이 통째로 실패하는데, 매일 로그를 확인하는 사람이 없으면 재앙을 막으려던 장치가 조용히 백업을 멈춰 세운다. 대신 건수를 남기고 잘못된 삭제는 버전 관리로 되돌린다. 근거는 `DECISIONS.md` D29.
+
+#### 사진 복구
+
+S3 사본은 평소에 읽지 않는다. R2에 유실이 생겼을 때만 되돌린다.
+
+```bash
+cd ~/coco
+set -a && . ./.env.production && set +a
+export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+export RCLONE_CONFIG_R2_REGION="$COCO_STORAGE_REGION" RCLONE_CONFIG_R2_ENDPOINT="$COCO_STORAGE_ENDPOINT"
+export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$COCO_STORAGE_ACCESS_KEY_ID"
+export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$COCO_STORAGE_SECRET_ACCESS_KEY"
+export RCLONE_CONFIG_OFFSITE_TYPE=s3 RCLONE_CONFIG_OFFSITE_PROVIDER=AWS
+export RCLONE_CONFIG_OFFSITE_REGION="$COCO_OFFSITE_REGION"
+export RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID="$COCO_OFFSITE_ACCESS_KEY_ID"
+export RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY="$COCO_OFFSITE_SECRET_ACCESS_KEY"
+
+# 먼저 무엇이 돌아오는지만 본다.
+rclone copy "offsite:$COCO_OFFSITE_BUCKET" "r2:$COCO_STORAGE_BUCKET" --dry-run --verbose
+
+# 확인한 뒤 실제로 되돌린다. sync가 아니라 copy를 쓴다.
+rclone copy "offsite:$COCO_OFFSITE_BUCKET" "r2:$COCO_STORAGE_BUCKET" --verbose
+```
+
+복구에는 `sync`가 아니라 `copy`를 쓴다. 방향이 반대인 `sync`는 S3에 없는 R2 객체를 지우므로, 부분 유실 상황에서 살아남은 사진까지 없앨 수 있다.
+
+이미 지워진 사진을 되살려야 한다면 S3 콘솔에서 해당 객체의 삭제 표시를 먼저 제거한 뒤 위 명령을 돌린다. 비현행 버전은 30일까지만 남는다.
+
 ### 외부 복사
 
 Mac mini에는 현재 외장 저장장치가 없다. 디스크 장애에 대비한 외부 복사는 별도 저장 위치(외장 SSD 또는 개발 MacBook으로의 주기적 `scp`)를 결정한 뒤 활성화한다. 그 전까지 중요한 변경 전에는 수동으로 최신 덤프를 MacBook으로 복사한다.

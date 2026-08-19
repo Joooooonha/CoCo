@@ -1,0 +1,10 @@
+[Unit]
+Description=CoCo element photo offsite sync (R2 to S3)
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=joonha
+WorkingDirectory=/home/joonha/coco
+ExecStart=/home/joonha/coco/scripts/sync-photos-offsite.sh

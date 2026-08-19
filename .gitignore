@@ -23,6 +23,9 @@ build/
 # Database backups
 backups/
 
+# Runtime logs written on the server
+logs/
+
 # Local third-party skill corpus
 HIGAgentSkills-main/
 
