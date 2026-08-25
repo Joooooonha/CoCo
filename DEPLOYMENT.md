@@ -309,16 +309,30 @@ PostgreSQL 덤프에는 사진의 객체 키만 있고 이미지 바이트는 �
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:GetBucketVersioning",
+        "s3:ListBucketVersions"
+      ],
       "Resource": "arn:aws:s3:::<버킷 이름>"
     },
     {
       "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:DeleteObject"
+      ],
       "Resource": "arn:aws:s3:::<버킷 이름>/*"
     }
   ]
 }
+
+동기화만 놓고 보면 `ListBucket`, `PutObject`, `GetObject`, `DeleteObject` 넷이면 된다. 나머지 셋은 읽기 전용이며 복구와 점검에 쓴다. `GetBucketVersioning`으로 안전망이 실제로 켜져 있는지 확인하고, `ListBucketVersions`와 `GetObjectVersion`으로 지워진 사진의 이전 버전을 찾아 되돌린다. 이 권한이 없으면 복구가 콘솔 수작업으로만 가능하다.
+
+`DeleteObjectVersion`은 넣지 않는다. 이 자격 증명이 유출돼도 이전 버전은 지울 수 없어야 안전망이 의미를 갖는다. 비현행 버전 정리는 수명 주기 규칙이 대신한다.
 ```
 
 5. 액세스 키를 발급한다. 시크릿은 발급 화면에서만 보인다.
