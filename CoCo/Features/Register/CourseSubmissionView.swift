@@ -155,6 +155,9 @@ struct CourseSubmissionView: View {
                             .foregroundStyle(.white)
                             .frame(width: 28, height: 28)
                             .background(draft.category.tint, in: Circle())
+                            // The annotation title already carries the name, so
+                            // the glyph would only repeat it.
+                            .accessibilityHidden(true)
                             .overlay {
                                 Circle().stroke(.white, lineWidth: 2)
                             }

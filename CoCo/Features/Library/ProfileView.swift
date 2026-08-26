@@ -143,6 +143,10 @@ struct ProfileView: View {
                 }
             }
             .buttonStyle(.plain)
+            // Without this it reads as the name followed by "바꾸기", which does
+            // not say what activating it does.
+            .accessibilityLabel("표시 이름 바꾸기")
+            .accessibilityValue(currentName ?? "이름 없음")
         }
     }
 

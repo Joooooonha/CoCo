@@ -107,9 +107,17 @@ struct CourseSheetView: View {
             .accessibilityLabel("코스 목록으로 돌아가기")
 
             VStack(alignment: .leading, spacing: 3) {
-                Label(element.category.displayName, systemImage: element.category.symbolName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(element.category.tint)
+                Label {
+                    Text(element.category.displayName)
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    // Color stays on the glyph, where the requirement is 3:1.
+                    // As caption text the same tint measures below 4.5:1 even
+                    // with Increase Contrast on.
+                    Image(systemName: element.category.symbolName)
+                        .foregroundStyle(element.category.tint)
+                }
+                .font(.caption.weight(.semibold))
 
                 Text(element.title)
                     .font(.title3.weight(.bold))
@@ -698,8 +706,13 @@ private struct ElementCount: View {
     let count: Int
 
     var body: some View {
-        Label("\(category.displayName) \(count)", systemImage: category.symbolName)
-            .font(.caption)
-            .foregroundStyle(category.tint)
+        Label {
+            Text("\(category.displayName) \(count)")
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: category.symbolName)
+                .foregroundStyle(category.tint)
+        }
+        .font(.caption)
     }
 }

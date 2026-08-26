@@ -13,8 +13,11 @@ struct RouteSourceBadge: View {
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(tint.opacity(0.15), in: Capsule())
-                .foregroundStyle(tint)
+                .background(tint.opacity(0.18), in: Capsule())
+                // Tinted caption text measures below 4.5:1 even with Increase
+                // Contrast, so the chip carries the color and the word keeps a
+                // label color that meets it.
+                .foregroundStyle(.primary)
                 .accessibilityLabel("경로 출처: \(label)")
         }
     }
