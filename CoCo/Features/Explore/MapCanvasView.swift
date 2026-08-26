@@ -54,7 +54,9 @@ struct MapCanvasView: View {
 
                 if !course.isClosedLoop, let finish = course.mapCoordinates.last {
                     Annotation("도착", coordinate: finish) {
-                        EndpointMarker(title: "도착", symbolName: "flag.checkered", color: .red)
+                        // The chequered flag already says "finish"; leaving it
+                        // red would compete with caution for attention.
+                        EndpointMarker(title: "도착", symbolName: "flag.checkered", color: Color(uiColor: .darkGray))
                     }
                 }
 

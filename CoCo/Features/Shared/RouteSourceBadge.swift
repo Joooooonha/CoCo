@@ -22,13 +22,9 @@ struct RouteSourceBadge: View {
         }
     }
 
-    private var tint: Color {
-        switch routeSource {
-        case .drawnFreehand: .orange
-        case .importedGPX: .blue
-        case .plannedMapKit, .recordedGPS, .plannedKakao: .secondary
-        }
-    }
+    /// Neutral on purpose. The badge already says which it is in words, and
+    /// borrowing orange or blue would make those colors mean two things.
+    private var tint: Color { .secondary }
 }
 
 #Preview {
