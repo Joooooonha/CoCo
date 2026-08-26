@@ -9,9 +9,10 @@ extension ElementCategory {
         // A viewpoint is somewhere you look from.
         case .view: "binoculars.fill"
         case .caution: "exclamationmark.triangle.fill"
-        // Water is the facility a runner looks for first, and it reads as
-        // refreshment rather than injury.
-        case .facility: "drop.fill"
+        // What ties a toilet, a water fountain and a bench together is that
+        // you stop there. A seated figure reads as that, and it pairs with
+        // the running figure on the start marker.
+        case .facility: "figure.seated.side"
         }
     }
 
