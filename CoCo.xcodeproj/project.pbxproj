@@ -151,10 +151,10 @@
 				};
 			};
 			buildConfigurationList = 79000B3C3010EA7B0019D8E1 /* Build configuration list for PBXProject "CoCo" */;
-			developmentRegion = en;
+			developmentRegion = ko;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
+				ko,
 				Base,
 			);
 			mainGroup = 79000B383010EA7B0019D8E1;

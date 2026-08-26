@@ -400,7 +400,7 @@ struct RegisterView: View {
             }
         } label: {
             Label("되돌리기", systemImage: "arrow.uturn.backward")
-                .frame(minHeight: 28)
+                .frame(minHeight: 44)
         }
         .buttonStyle(.bordered)
         .disabled(planner.mode == .freehand ? planner.drawnStrokes.isEmpty : planner.waypoints.isEmpty)
@@ -409,7 +409,7 @@ struct RegisterView: View {
             planner.closeLoopToStart()
         } label: {
             Label("순환 코스", systemImage: "arrow.triangle.2.circlepath")
-                .frame(minHeight: 28)
+                .frame(minHeight: 44)
         }
         .buttonStyle(.bordered)
         .disabled(planner.waypoints.count < 2 || planner.isClosedLoop || !planner.canAddWaypoint)
@@ -418,7 +418,7 @@ struct RegisterView: View {
             planner.clearRoute()
         } label: {
             Label("지우기", systemImage: "trash")
-                .frame(minHeight: 28)
+                .frame(minHeight: 44)
         }
         .buttonStyle(.bordered)
         .disabled(!planner.hasPlanningContent)

@@ -39,6 +39,12 @@ struct ContentView: View {
                         store.selectedCourseID = course.id
                         selectedTab = .explore
                     },
+                    onBrowseCourses: {
+                        selectedTab = .explore
+                    },
+                    onRegisterCourse: {
+                        selectedTab = .register
+                    },
                     onSessionReset: {
                         // Scrap and reaction state belongs to the account, so the
                         // explore list is reloaded when the identity changes.

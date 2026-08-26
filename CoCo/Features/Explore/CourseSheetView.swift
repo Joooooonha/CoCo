@@ -167,7 +167,7 @@ struct CourseSheetView: View {
                         } label: {
                             Label("수정", systemImage: "pencil")
                                 .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 28)
+                                .frame(minHeight: 44)
                         }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.capsule)
@@ -178,7 +178,7 @@ struct CourseSheetView: View {
                         } label: {
                             Label("삭제", systemImage: "trash")
                                 .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 28)
+                                .frame(minHeight: 44)
                         }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.capsule)
@@ -558,7 +558,7 @@ private struct CourseActionBar: View {
         Button(action: onAddElement) {
             Label("요소 추가", systemImage: "plus")
                 .font(.subheadline.weight(.semibold))
-                .frame(minHeight: 28)
+                .frame(minHeight: 44)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -575,7 +575,7 @@ private struct CourseActionBar: View {
         } label: {
             Label("\(course.scrapCount)", systemImage: course.isScrapped ? "bookmark.fill" : "bookmark")
                 .font(.subheadline.weight(.semibold))
-                .frame(minHeight: 28)
+                .frame(minHeight: 44)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -600,7 +600,7 @@ private struct CourseActionBar: View {
                 systemImage: isOn ? reaction.filledSymbolName : reaction.symbolName
             )
             .font(.subheadline.weight(.semibold))
-            .frame(minHeight: 28)
+            .frame(minHeight: 44)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
