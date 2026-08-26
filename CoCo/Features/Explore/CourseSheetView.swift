@@ -7,6 +7,7 @@ struct CourseSheetView: View {
     let minHeight: CGFloat
     let maxHeight: CGFloat
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var dragBaseHeight: CGFloat?
     @State private var editingElementDraft: ElementDraft?
     @State private var elementPendingDeletion: CourseElement?
@@ -112,7 +113,8 @@ struct CourseSheetView: View {
 
                 Text(element.title)
                     .font(.title3.weight(.bold))
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -125,14 +127,62 @@ struct CourseSheetView: View {
     private func elementDetailContent(_ element: CourseElement) -> some View {
         let elements = store.selectedCourse?.elements ?? [element]
 
-        return TabView(selection: elementSelectionBinding(fallback: element)) {
-            ForEach(elements) { pageElement in
-                elementDetailPage(pageElement)
-                    .tag(pageElement.id)
+        return VStack(spacing: 0) {
+            TabView(selection: elementSelectionBinding(fallback: element)) {
+                ForEach(elements) { pageElement in
+                    elementDetailPage(pageElement)
+                        .tag(pageElement.id)
+                }
+            }
+            // The built-in indicator floats over the page and covers the text
+            // underneath it at large type sizes, so it gets its own row below.
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            if elements.count > 1 {
+                elementPager(elements: elements, current: element)
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: elements.count > 1 ? .always : .never))
-        .indexViewStyle(.page(backgroundDisplayMode: .always))
+    }
+
+    /// Paging between elements is otherwise swipe-only, which Switch Control
+    /// and Voice Control cannot reach.
+    private func elementPager(elements: [CourseElement], current: CourseElement) -> some View {
+        let index = elements.firstIndex(of: current) ?? 0
+
+        return HStack(spacing: 12) {
+            Button {
+                store.selectedElement = elements[max(0, index - 1)]
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(index == 0)
+            .accessibilityLabel("이전 요소")
+
+            Spacer(minLength: 4)
+
+            // Short enough to survive between two 44pt buttons at the largest
+            // text sizes; VoiceOver still hears the full phrasing.
+            Text("\(index + 1) / \(elements.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .accessibilityLabel("\(elements.count)개 요소 중 \(index + 1)번째")
+
+            Spacer(minLength: 4)
+
+            Button {
+                store.selectedElement = elements[min(elements.count - 1, index + 1)]
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(index == elements.count - 1)
+            .accessibilityLabel("다음 요소")
+        }
+        .padding(.horizontal, 16)
+        .background(.bar)
     }
 
     private func elementSelectionBinding(fallback: CourseElement) -> Binding<UUID> {
@@ -241,6 +291,9 @@ struct CourseSheetView: View {
 
                 Text(courseCountTitle)
                     .font(.title3.weight(.bold))
+                    // The count is the point of this header, so it wraps
+                    // instead of truncating at large text sizes.
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let selectedCourse = store.selectedCourse {
                     Label("\(selectedCourse.name) 경로를 표시 중", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
@@ -437,6 +490,7 @@ struct CourseSheetView: View {
 }
 
 private struct CourseRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let store: CourseStore
     let course: Course
     let isSelected: Bool
@@ -444,36 +498,62 @@ private struct CourseRow: View {
     let action: () -> Void
     let onAddElement: () -> Void
 
+    /// The name, difficulty and route badge sit on one line normally and stack
+    /// once the text is large enough that the line would truncate the name.
+    @ViewBuilder
+    private var courseTitleLine: some View {
+        let name = Text(course.name)
+            .font(.headline)
+            .foregroundStyle(.primary)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+        let difficulty = Text(course.difficulty.displayName)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                name
+                HStack(spacing: 6) {
+                    difficulty
+                    RouteSourceBadge(routeSource: course.routeSource)
+                }
+            }
+        } else {
+            HStack(spacing: 6) {
+                name
+                difficulty
+                RouteSourceBadge(routeSource: course.routeSource)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Button(action: action) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
-                        Text(ownerInitial)
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.green, in: Circle())
-                            .accessibilityHidden(true)
+                        // Decorative and already hidden from VoiceOver. At
+                        // accessibility sizes the initial outgrows the circle,
+                        // and the space is better spent on the course name.
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Text(ownerInitial)
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(.green, in: Circle())
+                                .accessibilityHidden(true)
+                        }
 
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Text(course.name)
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-
-                                Text(course.difficulty.displayName)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-
-                                RouteSourceBadge(routeSource: course.routeSource)
-                            }
+                            courseTitleLine
 
                             Text("\(course.ownerName) · \(course.locationLabel)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                                // Where a course is matters when deciding
+                                // whether to run it, so it wraps rather than
+                                // losing the location to an ellipsis.
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 
                             Text(String(format: "%.1f km · 약 %d분", course.distanceKilometers, course.estimatedMinutes))
                                 .font(.caption)

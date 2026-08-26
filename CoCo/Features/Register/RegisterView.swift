@@ -6,6 +6,7 @@ struct RegisterView: View {
     let onRegistered: (Course) -> Void
 
     @State private var planner = RoutePlannerStore()
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsDetails = false
     @State private var hasAutoFittedCamera = false
     @State private var showsGPXImporter = false
@@ -88,7 +89,15 @@ struct RegisterView: View {
                     Text(importErrorMessage ?? "")
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    plannerControls
+                    // The panel grows with the text size and would otherwise
+                    // squeeze the map down to a strip. Tapping the map to place
+                    // a point is the whole task on this screen, so the panel
+                    // scrolls instead of taking the room.
+                    ScrollView {
+                        plannerControls
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxHeight: controlPanelMaxHeight)
                 }
                 .navigationDestination(isPresented: $showsDetails) {
                     CourseSubmissionView(planner: planner) { course in
@@ -260,6 +269,12 @@ struct RegisterView: View {
             }
             .gesture(drawGesture(proxy: proxy), isEnabled: planner.mode == .freehand)
         }
+    }
+
+    /// Roughly half of the shortest supported screen, so the map keeps a
+    /// tappable area even at the largest text sizes. Unlimited otherwise.
+    private var controlPanelMaxHeight: CGFloat? {
+        dynamicTypeSize.isAccessibilitySize ? 300 : nil
     }
 
     private var plannerControls: some View {
