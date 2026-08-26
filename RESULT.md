@@ -954,3 +954,39 @@ CoCo가 다른 앱과 다른 지점은 요소인데, 요소 개수는 코스를 
 
 - **가까운 두 요소**: 확대하면 구분된다. 목록 카드에 요소 개수가 나오고 요소 상세는 `‹ 1/3 ›`로 순회할 수 있어 지도에서 못 짚어도 다른 경로가 있다. 클러스터링 없이 넘어간다.
 - **한 지점에 여러 성격**: 현재 모델은 요소 하나에 분류 하나다. 경관이면서 주의인 지점은 요소를 두 개 만들어야 하고 그것이 겹침의 원인이 된다. 이는 시각 조정이 아니라 데이터 모델 변경이라 별도 결정으로 남긴다.
+
+## 2026-08-26 - 첫 실행 안내 (feature/first-run-guidance)
+
+첫 실행에 랜딩이나 로그인 화면이 없다는 것이 문제인지 따져봤다. 결론은 화면을 새로 만들지 않는 쪽이다.
+
+읽은 HIG 문서에 `launching`, `onboarding`을 추가했다.
+
+### 로그인 랜딩은 만들지 않는다
+
+SPEC F7의 "로그인 화면은 없다"는 의도된 결정이었고 유지한다. 게스트 승계가 구현돼 있어 나중에 로그인해도 그때까지 만든 코스와 스크랩이 따라오므로, 시작 시점에 로그인을 묻는 것은 마찰만 남긴다. HIG의 Agency 원칙도 같은 방향이다.
+
+### 온보딩 화면 대신 맥락 안의 안내
+
+HIG onboarding 문서가 이 선택을 직접 지지한다.
+
+> Prefer context-specific tips over a single upfront onboarding flow — surface tips at the moment they're relevant. Display instructions near the UI area they describe.
+
+지도 마커가 무엇을 뜻하는지 아무 설명이 없다는 것이 실제 공백이었다. 그래서 시트의 목록 바로 위에 한 줄 안내를 두고 세 분류의 기호를 함께 보여준다. 설명하는 대상 옆이다.
+
+- 닫기 버튼으로 없앨 수 있다.
+- 코스를 한 번 선택하면 안내가 목적을 달성한 것이므로 스스로 사라진다. 읽게 하는 대신 하게 만드는 쪽이다.
+- 한 번 사라지면 다시 나타나지 않는다.
+
+### 런치 스크린에 대한 정정
+
+앱 이름과 로고가 들어간 런치 스크린을 만들자고 먼저 제안했으나 HIG를 읽고 철회했다.
+
+> Launch screens serve one purpose: creating the perception of fast startup. They are **not** a branding opportunity. No text. No logos or branding.
+
+시스템 생성 기본값을 그대로 둔다. 지금 상태가 맞다.
+
+### 검증
+
+앱을 지우고 다시 설치해 진짜 첫 실행을 확인했다. 안내가 뜨고, 코스를 선택하면 사라지고, 재실행해도 다시 나오지 않는다. 저장된 플래그(`coco.didFinishFirstRunGuidance`)도 확인했다.
+
+iOS 테스트 78개 통과. 플래그가 재실행을 넘어 유지되는지는 별도 UserDefaults 도메인으로 검증한다.

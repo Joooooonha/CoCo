@@ -37,3 +37,19 @@ enum CurrentUserName {
         }
     }
 }
+
+/// Whether the one-time explanation of element categories has been shown.
+///
+/// Kept in defaults rather than app state so it survives relaunches: HIG asks
+/// that a first-run tip not be presented again once it has served its purpose.
+enum FirstRunGuidance {
+    private static let defaultsKey = "coco.didFinishFirstRunGuidance"
+
+    /// Swappable so tests do not write into the running app's defaults.
+    static var defaults: UserDefaults = .standard
+
+    static var isFinished: Bool {
+        get { defaults.bool(forKey: defaultsKey) }
+        set { defaults.set(newValue, forKey: defaultsKey) }
+    }
+}

@@ -9,6 +9,7 @@ struct CourseSheetView: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var dragBaseHeight: CGFloat?
+    @State private var showsFirstRunGuidance = !FirstRunGuidance.isFinished
     @State private var editingElementDraft: ElementDraft?
     @State private var elementPendingDeletion: CourseElement?
 
@@ -37,6 +38,10 @@ struct CourseSheetView: View {
             } else {
                 searchField
 
+                if showsFirstRunGuidance {
+                    firstRunGuidance
+                }
+
                 switch store.loadState {
                 case .idle, .loading:
                     loadingContent
@@ -58,6 +63,13 @@ struct CourseSheetView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        // Selecting a course is exactly what the tip asks for, so doing it
+        // retires the tip rather than leaving the reader to dismiss it.
+        .onChange(of: store.selectedCourseID) { _, selected in
+            if selected != nil {
+                finishFirstRunGuidance()
+            }
+        }
         .sheet(item: $editingElementDraft) { draft in
             ElementDraftEditorView(draft: draft) { updatedDraft in
                 Task {
@@ -90,6 +102,58 @@ struct CourseSheetView: View {
             }
         } message: {
             Text("삭제한 요소는 되돌릴 수 없어요.")
+        }
+    }
+
+    /// Shown once, in the sheet rather than on a screen of its own. HIG prefers
+    /// a tip next to the thing it describes over a flow people skip up front.
+    private var firstRunGuidance: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("코스를 고르면 지도에 이런 지점이 표시돼요")
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Naming the glyphs here is the point: the map is where they
+                // appear, but nothing on it says what they mean.
+                HStack(spacing: 12) {
+                    ForEach([ElementCategory.facility, .caution, .view], id: \.self) { category in
+                        Label {
+                            Text(category.displayName)
+                                .foregroundStyle(.secondary)
+                        } icon: {
+                            Image(systemName: category.symbolName)
+                                .foregroundStyle(category.tint)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            Button {
+                finishFirstRunGuidance()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("안내 닫기")
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 4)
+        .padding(.bottom, 4)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func finishFirstRunGuidance() {
+        guard showsFirstRunGuidance else { return }
+        FirstRunGuidance.isFinished = true
+        withAnimation(.easeOut(duration: 0.2)) {
+            showsFirstRunGuidance = false
         }
     }
 
