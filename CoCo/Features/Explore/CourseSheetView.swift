@@ -211,11 +211,16 @@ struct CourseSheetView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                ElementPhotoView(element: element)
+                // Without a photo the placeholder was the largest thing on the
+                // screen while the description — the only thing that helps
+                // decide whether to run here — sat below the fold.
+                if element.hasPhoto {
+                    ElementPhotoView(element: element)
+                }
 
                 Text(element.description)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(element.hasPhoto ? .secondary : .primary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if store.isSelectedCourseMine {
@@ -506,6 +511,34 @@ private struct CourseRow: View {
     let action: () -> Void
     let onAddElement: () -> Void
 
+    /// Only the categories this course actually has. A row of zeroes would
+    /// add height to every card without helping anyone choose.
+    @ViewBuilder
+    private var elementSummary: some View {
+        // Same order as the expanded card so the two never disagree.
+        let counts = [ElementCategory.facility, .caution, .view].compactMap { category -> (ElementCategory, Int)? in
+            let count = course.elements.count { $0.category == category }
+            return count > 0 ? (category, count) : nil
+        }
+
+        if !counts.isEmpty {
+            HStack(spacing: 10) {
+                ForEach(counts, id: \.0) { category, count in
+                    Label {
+                        Text("\(count)")
+                            .foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: category.symbolName)
+                            .foregroundStyle(category.tint)
+                    }
+                    .font(.caption2)
+                    .accessibilityLabel("\(category.displayName) \(count)개")
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
     /// The name, difficulty and route badge sit on one line normally and stack
     /// once the text is large enough that the line would truncate the name.
     @ViewBuilder
@@ -566,6 +599,14 @@ private struct CourseRow: View {
                             Text(String(format: "%.1f km · 약 %d분", course.distanceKilometers, course.estimatedMinutes))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            // What sets a course apart here is its elements, and
+                            // until now they only appeared after selecting it —
+                            // so the list offered nothing to choose between
+                            // beyond the author's own difficulty rating.
+                            if !showsDetails {
+                                elementSummary
+                            }
                         }
 
                         Spacer(minLength: 8)
