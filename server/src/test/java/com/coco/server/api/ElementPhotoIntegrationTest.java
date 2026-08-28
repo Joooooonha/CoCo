@@ -32,7 +32,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /// Covers the presigned upload flow end to end with storage stubbed out, so the
 /// ownership, size and content-type rules are exercised without network access.
-@SpringBootTest
+@SpringBootTest(properties = "coco.auth.guest-issuance-enabled=true")
 @AutoConfigureMockMvc
 @Testcontainers
 @Import(ElementPhotoIntegrationTest.StubStorageConfig.class)

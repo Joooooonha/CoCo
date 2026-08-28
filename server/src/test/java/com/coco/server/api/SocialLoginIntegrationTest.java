@@ -33,7 +33,10 @@ import tools.jackson.databind.ObjectMapper;
 /// providers. The provider clients are replaced by stubs that map an authorization
 /// code to a fixed profile, so the OAuth transport is out of scope here while the
 /// account linking, guest migration and deletion behaviour is fully exercised.
-@SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
+@SpringBootTest(properties = {
+        "spring.main.allow-bean-definition-overriding=true",
+        "coco.auth.guest-issuance-enabled=true"
+})
 @AutoConfigureMockMvc
 @Testcontainers
 class SocialLoginIntegrationTest {

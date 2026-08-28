@@ -284,6 +284,7 @@ struct CourseAPIClient {
         try tokenStore.save(response.token)
         CurrentUserID.value = response.user.id
         CurrentUserName.value = response.user.displayName
+        await SessionStore.shared.didSignIn()
         return response.user
     }
 
@@ -297,7 +298,7 @@ struct CourseAPIClient {
             // A rejected token is already unusable, so treat failure as success.
             try? await sendExpectingSuccess(request)
         }
-        clearLocalSession()
+        await clearLocalSession()
     }
 
     func deleteAccount() async throws {
@@ -307,45 +308,30 @@ struct CourseAPIClient {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             try await sendExpectingSuccess(request)
         }
-        clearLocalSession()
+        await clearLocalSession()
     }
 
-    private func clearLocalSession() {
-        try? tokenStore.delete()
-        CurrentUserID.value = nil
-        CurrentUserName.value = nil
+    private func clearLocalSession() async {
+        await SessionStore.shared.didSignOut()
     }
 
+    /// A rejected token sends the user back to sign-in rather than silently
+    /// creating a replacement account. The old account still holds their
+    /// courses, and only their social identity can reach it again.
     private func withAuthorization<Value>(
         _ operation: (String) async throws -> Value
     ) async throws -> Value {
-        let token = try await bearerToken()
+        guard let token = try tokenStore.read() else {
+            await SessionStore.shared.didSignOut()
+            throw APIClientError.unauthorized
+        }
 
         do {
             return try await operation(token)
         } catch APIClientError.unauthorized {
-            try tokenStore.delete()
-            let renewedToken = try await issueGuestToken()
-            return try await operation(renewedToken)
+            await SessionStore.shared.didSignOut()
+            throw APIClientError.unauthorized
         }
-    }
-
-    private func bearerToken() async throws -> String {
-        if let storedToken = try tokenStore.read() {
-            return storedToken
-        }
-        return try await issueGuestToken()
-    }
-
-    private func issueGuestToken() async throws -> String {
-        var request = URLRequest(url: endpoint("api/v1/auth/guest"))
-        request.httpMethod = "POST"
-
-        let response: GuestAuthResponse = try await send(request)
-        try tokenStore.save(response.token)
-        CurrentUserID.value = response.user.id
-        CurrentUserName.value = response.user.displayName
-        return response.token
     }
 
     private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
@@ -435,19 +421,8 @@ private struct SocialLoginPayload: Encodable {
     let redirectUri: String
 }
 
-/// Returned by guest issuance and social login alike.
 private struct AuthResponse: Decodable {
     let user: User
-    let token: String
-}
-
-private struct GuestAuthResponse: Decodable {
-    struct GuestUser: Decodable {
-        let id: UUID
-        let displayName: String
-    }
-
-    let user: GuestUser
     let token: String
 }
 

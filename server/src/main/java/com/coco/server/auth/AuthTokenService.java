@@ -22,6 +22,8 @@ public class AuthTokenService {
     }
 
     private static final Duration TOKEN_LIFETIME = Duration.ofDays(30);
+    /// Skip the write unless the renewal buys at least this much.
+    private static final Duration RENEWAL_THRESHOLD = Duration.ofHours(12);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final AuthTokenRepository authTokenRepository;
@@ -38,11 +40,23 @@ public class AuthTokenService {
         return new IssuedToken(rawToken, expiresAt);
     }
 
-    @Transactional(readOnly = true)
+    /// Extends the expiry on use. Without this a member who leaves the app
+    /// alone for the token lifetime is signed out with nothing to show for it,
+    /// even though nothing about their account changed.
+    @Transactional
     public Optional<AuthenticatedUser> authenticate(String rawToken) {
+        Instant now = Instant.now();
         return authTokenRepository
-                .findByTokenHashAndRevokedAtIsNullAndExpiresAtAfter(hash(rawToken), Instant.now())
-                .map(AuthTokenEntity::getUser)
+                .findByTokenHashAndRevokedAtIsNullAndExpiresAtAfter(hash(rawToken), now)
+                .map(token -> {
+                    // Only write when the gain is meaningful, so ordinary reads
+                    // do not turn into a database write each time.
+                    Instant renewed = now.plus(TOKEN_LIFETIME);
+                    if (renewed.isAfter(token.getExpiresAt().plus(RENEWAL_THRESHOLD))) {
+                        token.extendExpiry(renewed);
+                    }
+                    return token.getUser();
+                })
                 .map(user -> new AuthenticatedUser(user.getId(), user.getDisplayName()));
     }
 

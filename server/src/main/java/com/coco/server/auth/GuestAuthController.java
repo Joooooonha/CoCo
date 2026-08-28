@@ -1,5 +1,7 @@
 package com.coco.server.auth;
 
+import com.coco.server.common.ForbiddenOperationException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,15 +17,31 @@ public class GuestAuthController {
 
     private final GuestAuthService guestAuthService;
     private final AuthTokenService authTokenService;
+    private final boolean guestIssuanceEnabled;
 
-    public GuestAuthController(GuestAuthService guestAuthService, AuthTokenService authTokenService) {
+    public GuestAuthController(
+            GuestAuthService guestAuthService,
+            AuthTokenService authTokenService,
+            @Value("${coco.auth.guest-issuance-enabled:false}") boolean guestIssuanceEnabled
+    ) {
         this.guestAuthService = guestAuthService;
         this.authTokenService = authTokenService;
+        this.guestIssuanceEnabled = guestIssuanceEnabled;
     }
 
+    /// Off in production. Every real account now comes from a social provider,
+    /// which is what makes an account survive a change of device; an open
+    /// endpoint that mints accounts would also let anyone fill the user table.
+    /// Tests keep it on so they can authenticate without an OAuth round trip.
     @PostMapping("/guest")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponse issueGuest() {
+        if (!guestIssuanceEnabled) {
+            throw new ForbiddenOperationException(
+                    "AUTH_GUEST_DISABLED",
+                    "게스트 계정은 더 이상 발급하지 않아요. 소셜 로그인으로 시작해 주세요."
+            );
+        }
         return guestAuthService.issueGuest();
     }
 

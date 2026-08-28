@@ -109,6 +109,11 @@ struct CourseSheetView: View {
     /// a tip next to the thing it describes over a flow people skip up front.
     private var firstRunGuidance: some View {
         HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .font(.subheadline)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("코스를 고르면 지도에 이런 지점이 표시돼요")
                     .font(.subheadline.weight(.semibold))
@@ -143,9 +148,18 @@ struct CourseSheetView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("안내 닫기")
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 4)
-        .padding(.bottom, 4)
+        .padding(.leading, 12)
+        .padding(.trailing, 2)
+        .padding(.vertical, 6)
+        // A card rather than loose text: without a surface of its own it read
+        // as part of the list instead of a notice that will go away.
+        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.quaternary, lineWidth: 1)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
         .accessibilityElement(children: .contain)
     }
 

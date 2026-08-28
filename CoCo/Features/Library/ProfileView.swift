@@ -18,9 +18,7 @@ struct ProfileView: View {
                 accountSection
                 nameSection
 
-                if store.isSignedIn {
-                    signOutSection
-                }
+                signOutSection
 
                 deleteSection
             }
@@ -88,46 +86,18 @@ struct ProfileView: View {
         }
     }
 
+    /// Everyone reaching this screen is signed in, so it reports which
+    /// provider the account is linked to rather than offering a way in.
     private var accountSection: some View {
         Section {
-            if store.isSignedIn {
-                LabeledContent("로그인") {
-                    Text(linkedProviderNames)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("로그인하면 기기를 바꾸거나 앱을 다시 설치해도 코스와 스크랩을 그대로 쓸 수 있어요.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(AuthProvider.allCases, id: \.self) { provider in
-                        Button {
-                            Task { await store.signIn(with: provider) }
-                        } label: {
-                            HStack {
-                                Text("\(provider.displayName)로 계속하기")
-                                    .font(.headline)
-                                Spacer()
-                                if store.isBusy {
-                                    ProgressView()
-                                }
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(store.isBusy)
-                        .accessibilityHint("\(provider.displayName) 계정으로 로그인합니다")
-                    }
-                }
-                .padding(.vertical, 4)
+            LabeledContent("로그인") {
+                Text(linkedProviderNames)
+                    .foregroundStyle(.secondary)
             }
         } header: {
             Text("계정")
         } footer: {
-            if !store.isSignedIn {
-                Text("지금은 이 기기에서만 쓰는 게스트예요. 앱을 지우면 코스와 스크랩을 되찾을 수 없어요.")
-            }
+            Text("같은 계정으로 로그인하면 기기를 바꿔도 코스와 스크랩이 그대로 이어져요.")
         }
     }
 

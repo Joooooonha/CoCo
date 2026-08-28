@@ -25,7 +25,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@SpringBootTest
+@SpringBootTest(properties = "coco.auth.guest-issuance-enabled=true")
 @AutoConfigureMockMvc
 @Testcontainers
 class ApiIntegrationTest {
