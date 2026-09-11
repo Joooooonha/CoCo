@@ -14,7 +14,6 @@
 | **출발** | Apple Developer Academy AI Playground 4일 팀 활동 |
 | **이후 개발** | iOS·서버·배포 개인 개발 |
 | **상태** | MVP 기능 완료, 품질 강화 및 TestFlight 준비 중 |
-| **운영 API** | `api.cocorun.site` |
 
 ---
 
