@@ -15,6 +15,8 @@
 | **이후 개발** | iOS·서버·배포 개인 개발 |
 | **상태** | MVP 기능 완료, 품질 강화 및 TestFlight 준비 중 |
 
+![CoCo AI Playground 원페이퍼](docs/CoCo_One_Pager.png)
+
 ---
 
 ## 사용 흐름
