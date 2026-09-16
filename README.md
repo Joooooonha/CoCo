@@ -16,6 +16,8 @@
 | **상태** | MVP 기능 완료, 품질 강화 및 TestFlight 준비 중 |
 | **운영 API** | `api.cocorun.site` |
 
+![CoCo AI Playground 원페이퍼](docs/CoCo_One_Pager.png)
+
 ---
 
 ## 사용 흐름
